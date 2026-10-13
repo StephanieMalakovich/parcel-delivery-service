@@ -1,4 +1,5 @@
 package by.delivery.main_service.repository.entity;
 
-public class Notification {
+public enum ParcelSize {
+    SMALL, MEDIUM, LARGE    
 }

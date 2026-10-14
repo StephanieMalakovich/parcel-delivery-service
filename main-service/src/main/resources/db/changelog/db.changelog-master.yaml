@@ -5,3 +5,5 @@ databaseChangeLog:
       changes:
         - tagDatabase:
             tag: baseline
+  - include:
+      file: db/changelog/changes/001-schema.yaml

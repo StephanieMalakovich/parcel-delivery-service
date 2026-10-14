@@ -1,0 +1,185 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 001-clients
+      author: delivery
+      changes:
+        - createTable:
+            tableName: clients
+            columns:
+              - column: { name: id, type: integer, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: user_id, type: integer, constraints: { nullable: false, unique: true, uniqueConstraintName: uq_clients_user_id } }
+              - column: { name: full_name, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: phone, type: varchar(11) }
+
+  - changeSet:
+      id: 002-couriers
+      author: delivery
+      changes:
+        - createTable:
+            tableName: couriers
+            columns:
+              - column: { name: id, type: integer, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: user_id, type: integer, constraints: { nullable: false, unique: true, uniqueConstraintName: uq_couriers_user_id } }
+              - column: { name: full_name, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: status, type: varchar(20), defaultValue: AVAILABLE, constraints: { nullable: false } }
+              - column: { name: phone, type: varchar(11) }
+
+  - changeSet:
+      id: 003-zones
+      author: delivery
+      changes:
+        - createTable:
+            tableName: zones
+            columns:
+              - column: { name: id, type: integer, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: name, type: varchar(255), constraints: { nullable: false, unique: true, uniqueConstraintName: uq_zones_name } }
+
+  - changeSet:
+      id: 004-courier-zones
+      author: delivery
+      changes:
+        - createTable:
+            tableName: courier_zones
+            columns:
+              - column: { name: courier_id, type: integer, constraints: { nullable: false } }
+              - column: { name: zone_id, type: integer, constraints: { nullable: false } }
+        - addPrimaryKey:
+            tableName: courier_zones
+            columnNames: courier_id, zone_id
+            constraintName: pk_courier_zones
+        - addForeignKeyConstraint:
+            baseTableName: courier_zones
+            baseColumnNames: courier_id
+            referencedTableName: couriers
+            referencedColumnNames: id
+            constraintName: fk_courier_zones_courier
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: courier_zones
+            baseColumnNames: zone_id
+            referencedTableName: zones
+            referencedColumnNames: id
+            constraintName: fk_courier_zones_zone
+            onDelete: CASCADE
+
+  - changeSet:
+      id: 005-orders
+      author: delivery
+      changes:
+        - createTable:
+            tableName: orders
+            columns:
+              - column: { name: id, type: integer, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: client_id, type: integer, constraints: { nullable: false } }
+              - column: { name: courier_id, type: integer }
+              - column: { name: zone_id, type: integer, constraints: { nullable: false } }
+              - column: { name: pickup_address, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: delivery_address, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: status, type: varchar(255), defaultValue: SEARCHING_COURIER, constraints: { nullable: false } }
+              - column: { name: cancelled_by, type: varchar(255) }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: now(), constraints: { nullable: false } }
+              - column: { name: assigned_at, type: timestamp }
+              - column: { name: picked_up_at, type: timestamp }
+              - column: { name: delivered_at, type: timestamp }
+              - column: { name: cancelled_at, type: timestamp }
+        - addForeignKeyConstraint:
+            baseTableName: orders
+            baseColumnNames: client_id
+            referencedTableName: clients
+            referencedColumnNames: id
+            constraintName: fk_orders_client
+        - addForeignKeyConstraint:
+            baseTableName: orders
+            baseColumnNames: courier_id
+            referencedTableName: couriers
+            referencedColumnNames: id
+            constraintName: fk_orders_courier
+        - addForeignKeyConstraint:
+            baseTableName: orders
+            baseColumnNames: zone_id
+            referencedTableName: zones
+            referencedColumnNames: id
+            constraintName: fk_orders_zone
+        - createIndex:
+            tableName: orders
+            indexName: idx_orders_client
+            columns:
+              - column: { name: client_id }
+        - createIndex:
+            tableName: orders
+            indexName: idx_orders_courier
+            columns:
+              - column: { name: courier_id }
+        - createIndex:
+            tableName: orders
+            indexName: idx_orders_zone_status
+            columns:
+              - column: { name: zone_id }
+              - column: { name: status }
+
+  - changeSet:
+      id: 006-parcels
+      author: delivery
+      changes:
+        - createTable:
+            tableName: parcels
+            columns:
+              - column: { name: id, type: integer, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: order_id, type: integer, constraints: { nullable: false, unique: true, uniqueConstraintName: uq_parcels_order_id } }
+              - column: { name: weight_kg, type: "numeric(6,2)" }
+              - column: { name: size, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: description, type: text }
+        - addForeignKeyConstraint:
+            baseTableName: parcels
+            baseColumnNames: order_id
+            referencedTableName: orders
+            referencedColumnNames: id
+            constraintName: fk_parcels_order
+            onDelete: CASCADE
+
+  - changeSet:
+      id: 007-reviews
+      author: delivery
+      changes:
+        - createTable:
+            tableName: reviews
+            columns:
+              - column: { name: id, type: integer, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: order_id, type: integer, constraints: { nullable: false, unique: true, uniqueConstraintName: uq_reviews_order_id } }
+              - column: { name: courier_id, type: integer, constraints: { nullable: false } }
+              - column: { name: rating, type: smallint, constraints: { nullable: false } }
+              - column: { name: comment, type: text }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: now(), constraints: { nullable: false } }
+        - addForeignKeyConstraint:
+            baseTableName: reviews
+            baseColumnNames: order_id
+            referencedTableName: orders
+            referencedColumnNames: id
+            constraintName: fk_reviews_order
+        - addForeignKeyConstraint:
+            baseTableName: reviews
+            baseColumnNames: courier_id
+            referencedTableName: couriers
+            referencedColumnNames: id
+            constraintName: fk_reviews_courier
+
+  - changeSet:
+      id: 008-notifications
+      author: delivery
+      changes:
+        - createTable:
+            tableName: notifications
+            columns:
+              - column: { name: id, type: integer, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: user_id, type: integer, constraints: { nullable: false } }   # логическая ссылка на Auth DB
+              - column: { name: text, type: text, constraints: { nullable: false } }
+              - column: { name: type, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: is_read, type: boolean, defaultValueBoolean: false, constraints: { nullable: false } }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: now(), constraints: { nullable: false } }
+        - createIndex:
+            tableName: notifications
+            indexName: idx_notifications_user_unread
+            columns:
+              - column: { name: user_id }
+              - column: { name: is_read }

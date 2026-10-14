@@ -18,7 +18,7 @@ import lombok.Setter;
 import lombok.ToString;
 
 @Entity
-@Table(name = "parcels")
+@Table(name = "notifications")
 @Getter
 @Setter
 @NoArgsConstructor

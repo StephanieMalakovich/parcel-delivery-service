@@ -78,8 +78,8 @@ public class Order {
     @Column(name = "picked_up_at")
     private LocalDateTime pickedUpAt;
 
-    @Column(name = "delivery_at")
-    private LocalDateTime deliveryAt;
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
 
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;

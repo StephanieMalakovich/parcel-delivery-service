@@ -2,6 +2,7 @@ package by.delivery.main_service.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -18,7 +19,7 @@ import by.delivery.main_service.repository.CourierRepository;
 import by.delivery.main_service.repository.CourierZoneRepository;
 import by.delivery.main_service.repository.OrderRepository;
 import by.delivery.main_service.repository.ZoneRepository;
-import by.delivery.main_service.repository.entity.CancellBy;
+import by.delivery.main_service.repository.entity.CancelledBy;
 import by.delivery.main_service.repository.entity.Client;
 import by.delivery.main_service.repository.entity.Courier;
 import by.delivery.main_service.repository.entity.CourierStatus;
@@ -29,7 +30,6 @@ import by.delivery.main_service.repository.entity.Parcel;
 import by.delivery.main_service.repository.entity.Zone;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-
 
 @Service
 @RequiredArgsConstructor
@@ -42,7 +42,6 @@ public class OrderService {
     private final CourierZoneRepository courierZoneRepository;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
-
 
     @Transactional
     public OrderResponse createOrder(Integer userId, CreateOrderRequest request) {
@@ -73,7 +72,6 @@ public class OrderService {
         return OrderResponse.from(saved);
     }
 
-
     @Transactional
     public OrderResponse acceptOrder(Integer courierUserId, Integer orderId) {
         Courier courier = courierRepository.findByUserId(courierUserId)
@@ -101,7 +99,6 @@ public class OrderService {
         eventPublisher.publishEvent(OrderAcceptedEvent.from(order));
         return OrderResponse.from(order);
     }
-
 
     @Transactional
     public OrderResponse reassignOrderByAdmin(Integer orderId, Integer newCourierId) {
@@ -151,7 +148,7 @@ public class OrderService {
         Courier courier = order.getCourier();
 
         order.setStatus(OrderStatus.CANCELLED);
-        order.setRole(CancellBy.ADMIN);
+        order.setCancelledBy(CancelledBy.ADMIN);
         order.setCancelledAt(LocalDateTime.now());
 
         Integer courierUserId = null;
@@ -168,7 +165,6 @@ public class OrderService {
         eventPublisher.publishEvent(OrderCancelledEvent.from(order));
         return OrderResponse.from(order);
     }
-
 
     private Order loadNotFinished(Integer orderId) {
         Order order = orderRepository.findWithLockById(orderId)
@@ -205,5 +201,58 @@ public class OrderService {
 
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
+    }
+
+    @Transactional
+    public OrderResponse cancelOrderByClient(
+            Integer userId,
+            Integer orderId) {
+        if (userId == null || orderId == null) {
+            throw new IllegalArgumentException(
+                    "userId и orderId обязательны");
+        }
+
+        Order order = orderRepository.findWithLockById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Заказ не найден: " + orderId));
+
+        if (!Objects.equals(
+                order.getClient().getUserId(),
+                userId)) {
+            throw new SecurityException(
+                    "Заказ не принадлежит этому клиенту");
+        }
+
+        if (order.getStatus() != OrderStatus.SEARCHING_COURIER
+                && order.getStatus() != OrderStatus.COURIER_ASSIGNED) {
+            throw new IllegalStateException(
+                    "Нельзя отменить заказ в статусе: "
+                            + order.getStatus());
+        }
+
+        Courier courier = order.getCourier();
+
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelledBy(CancelledBy.CLIENT);
+        order.setCancelledAt(LocalDateTime.now());
+
+        if (courier != null) {
+            courier.setStatus(CourierStatus.AVAILABLE);
+
+            notificationService.notifyUsers(
+                    List.of(courier.getUserId()),
+                    NotificationType.ORDER_CANCELLED,
+                    "Заказ #" + orderId + " отменён клиентом");
+        }
+
+        orderRepository.save(order);
+
+        eventPublisher.publishEvent(
+                OrderStatusChangedEvent.from(order));
+
+        eventPublisher.publishEvent(
+                OrderCancelledEvent.from(order));
+
+        return OrderResponse.from(order);
     }
 }

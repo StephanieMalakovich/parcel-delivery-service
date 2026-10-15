@@ -3,7 +3,7 @@ package by.delivery.main_service.event;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import by.delivery.main_service.repository.entity.CancellBy;
+import by.delivery.main_service.repository.entity.CancelledBy;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 
@@ -12,7 +12,7 @@ public record OrderStatusChangedEvent(
         LocalDateTime occurredAt,
         Integer orderId,
         OrderStatus status,
-        CancellBy cancelledBy,
+        CancelledBy cancelledBy,
         Integer zoneId,
         Integer clientUserId,
         Integer previousCourierUserId,
@@ -29,7 +29,7 @@ public record OrderStatusChangedEvent(
 
     public static OrderStatusChangedEvent of(Order o, Integer previousCourierUserId, Integer courierUserId) {
         return new OrderStatusChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
-                o.getId(), o.getStatus(), o.getRole(), o.getZone().getId(),
+                o.getId(), o.getStatus(), o.getCancelledBy(), o.getZone().getId(),
                 o.getClient().getUserId(), previousCourierUserId, courierUserId,
                 o.getCreatedAt(), o.getAssignedAt(), o.getPickedUpAt(), o.getDeliveredAt(), o.getCancelledAt());
     }

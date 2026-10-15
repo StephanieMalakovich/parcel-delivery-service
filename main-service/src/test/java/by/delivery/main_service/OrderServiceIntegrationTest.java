@@ -34,7 +34,7 @@ import by.delivery.main_service.repository.CourierZoneRepository;
 import by.delivery.main_service.repository.OrderRepository;
 import by.delivery.main_service.repository.UserNotificationRepository;
 import by.delivery.main_service.repository.ZoneRepository;
-import by.delivery.main_service.repository.entity.CancellBy;
+import by.delivery.main_service.repository.entity.CancelledBy;
 import by.delivery.main_service.repository.entity.Client;
 import by.delivery.main_service.repository.entity.Courier;
 import by.delivery.main_service.repository.entity.CourierStatus;
@@ -308,7 +308,7 @@ class OrderServiceIntegrationTest {
         OrderResponse cancelled = orderService.cancelOrderByAdmin(order.id());
 
         assertThat(cancelled.status()).isEqualTo(OrderStatus.CANCELLED);
-        assertThat(cancelled.cancelledBy()).isEqualTo(CancellBy.ADMIN);
+        assertThat(cancelled.cancelledBy()).isEqualTo(CancelledBy.ADMIN);
         assertThat(cancelled.cancelledAt()).isNotNull();
         assertThat(cancelled.courierId()).isEqualTo(courier.getId());
         assertThat(courierStatus(courier)).isEqualTo(CourierStatus.AVAILABLE);
@@ -322,7 +322,7 @@ class OrderServiceIntegrationTest {
                 });
         assertThat(applicationEvents.stream(OrderCancelledEvent.class))
                 .singleElement().satisfies(e -> {
-                    assertThat(e.cancelledBy()).isEqualTo(CancellBy.ADMIN);
+                    assertThat(e.cancelledBy()).isEqualTo(CancelledBy.ADMIN);
                     assertThat(e.courierId()).isEqualTo(courier.getId());
                 });
 

@@ -66,7 +66,7 @@ public class Order {
 
     @Column(name = "cancelled_by")
     @Enumerated(EnumType.STRING)
-    private CancellBy role;
+    private CancelledBy cancelledBy;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -1,0 +1,26 @@
+name: parcel-delivery
+
+services:
+  primary-db:
+    image: postgres:18
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: primarydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PRIMARY_DB_PASSWORD:-dev_password}
+
+    ports:
+      - "127.0.0.1:5432:5432"
+
+    volumes:
+      - primary_db_data:/var/lib/postgresql
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d primarydb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  primary_db_data:

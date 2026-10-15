@@ -46,3 +46,15 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+tasks.named('bootRun') {
+    def envFile = rootProject.file('../.env')
+    if (envFile.exists()) {
+        envFile.readLines()
+            .findAll { it && !it.startsWith('#') && it.contains('=') }
+            .each { line ->
+                def (k, v) = line.split('=', 2)
+                environment k.trim(), v.trim()
+            }
+    }
+}

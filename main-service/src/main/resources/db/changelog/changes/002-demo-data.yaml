@@ -1,0 +1,230 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 002-demo-zones
+      author: delivery
+      context: demo
+      changes:
+        - insert:
+            tableName: zones
+            columns:
+              - column: { name: name, value: "Центральный" }
+        - insert:
+            tableName: zones
+            columns:
+              - column: { name: name, value: "Советский" }
+        - insert:
+            tableName: zones
+            columns:
+              - column: { name: name, value: "Первомайский" }
+
+  - changeSet:
+      id: 002-demo-clients
+      author: delivery
+      context: demo
+      changes:
+        - insert:
+            tableName: clients
+            columns:
+              - column: { name: user_id,   valueNumeric: 1001 }
+              - column: { name: full_name, value: "Иванов Иван Иванович" }
+              - column: { name: phone,     value: "79001112233" }
+        - insert:
+            tableName: clients
+            columns:
+              - column: { name: user_id,   valueNumeric: 1002 }
+              - column: { name: full_name, value: "Петрова Анна Сергеевна" }
+              - column: { name: phone,     value: "79002223344" }
+        - insert:
+            tableName: clients
+            columns:
+              - column: { name: user_id,   valueNumeric: 1003 }
+              - column: { name: full_name, value: "Смирнов Алексей Петрович" }
+              - column: { name: phone,     value: "79006667788" }
+
+  - changeSet:
+      id: 002-demo-couriers
+      author: delivery
+      context: demo
+      changes:
+        - insert:
+            tableName: couriers
+            columns:
+              - column: { name: user_id,   valueNumeric: 2001 }
+              - column: { name: full_name, value: "Сидоров Пётр Алексеевич" }
+              - column: { name: status,    value: "AVAILABLE" }
+              - column: { name: phone,     value: "79003334455" }
+        - insert:
+            tableName: couriers
+            columns:
+              - column: { name: user_id,   valueNumeric: 2002 }
+              - column: { name: full_name, value: "Кузнецов Дмитрий Олегович" }
+              - column: { name: status,    value: "AVAILABLE" }
+              - column: { name: phone,     value: "79004445566" }
+        - insert:
+            tableName: couriers
+            columns:
+              - column: { name: user_id,   valueNumeric: 2003 }
+              - column: { name: full_name, value: "Морозов Олег Викторович" }
+              - column: { name: status,    value: "AVAILABLE" }
+              - column: { name: phone,     value: "79005556677" }
+
+  - changeSet:
+      id: 002-demo-courier-zones
+      author: delivery
+      context: demo
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO courier_zones (courier_id, zone_id)
+              SELECT c.id, z.id
+              FROM couriers c
+              JOIN zones z ON z.name IN ('Центральный', 'Советский')
+              WHERE c.user_id = 2001;
+
+              INSERT INTO courier_zones (courier_id, zone_id)
+              SELECT c.id, z.id
+              FROM couriers c
+              JOIN zones z ON z.name = 'Первомайский'
+              WHERE c.user_id = 2002;
+
+              INSERT INTO courier_zones (courier_id, zone_id)
+              SELECT c.id, z.id
+              FROM couriers c
+              JOIN zones z ON z.name = 'Центральный'
+              WHERE c.user_id = 2003;
+
+  - changeSet:
+      id: 002-demo-orders
+      author: delivery
+      context: demo
+      changes:
+        - sql:
+            sql: |
+              -- #1 DELIVERED (10 дней назад), клиент 1001, курьер 2001, зона Центральный
+              INSERT INTO orders (client_id, courier_id, zone_id, pickup_address,
+                                  delivery_address, status,
+                                  created_at, assigned_at, picked_up_at, delivered_at)
+              SELECT c.id, co.id, z.id, 'ул. Ленина 1', 'ул. Мира 10',
+                     'DELIVERED',
+                     now() - interval '10 days',
+                     now() - interval '10 days' + interval '10 min',
+                     now() - interval '10 days' + interval '30 min',
+                     now() - interval '10 days' + interval '1 hour'
+              FROM clients c, couriers co, zones z
+              WHERE c.user_id = 1001 AND co.user_id = 2001
+                AND z.name = 'Центральный';
+
+              INSERT INTO parcels (order_id, weight_kg, size, description)
+              SELECT o.id, 2.50, 'SMALL', 'Документы'
+              FROM orders o
+              WHERE o.pickup_address = 'ул. Ленина 1'
+                AND o.delivery_address = 'ул. Мира 10';
+
+              -- #2 CANCELLED клиентом (2 дня назад), клиент 1002, без курьера, зона Советский
+              INSERT INTO orders (client_id, courier_id, zone_id, pickup_address,
+                                  delivery_address, status, cancelled_by,
+                                  created_at, cancelled_at)
+              SELECT c.id, NULL, z.id, 'пр. Победы 5', 'ул. Гагарина 20',
+                     'CANCELLED', 'CLIENT',
+                     now() - interval '2 days',
+                     now() - interval '2 days' + interval '5 min'
+              FROM clients c, zones z
+              WHERE c.user_id = 1002 AND z.name = 'Советский';
+
+              INSERT INTO parcels (order_id, weight_kg, size, description)
+              SELECT o.id, 1.20, 'SMALL', 'Книги'
+              FROM orders o
+              WHERE o.pickup_address = 'пр. Победы 5';
+
+              -- #3 SEARCHING_COURIER (30 минут назад), клиент 1001, зона Советский
+              INSERT INTO orders (client_id, courier_id, zone_id, pickup_address,
+                                  delivery_address, status, created_at)
+              SELECT c.id, NULL, z.id, 'ул. Садовая 12', 'ул. Кирова 8',
+                     'SEARCHING_COURIER', now() - interval '30 min'
+              FROM clients c, zones z
+              WHERE c.user_id = 1001 AND z.name = 'Советский';
+
+              INSERT INTO parcels (order_id, weight_kg, size, description)
+              SELECT o.id, 3.00, 'MEDIUM', 'Одежда'
+              FROM orders o
+              WHERE o.pickup_address = 'ул. Садовая 12';
+
+              -- #4 COURIER_ASSIGNED (50 минут назад), клиент 1002, курьер 2002, зона Первомайский
+              INSERT INTO orders (client_id, courier_id, zone_id, pickup_address,
+                                  delivery_address, status,
+                                  created_at, assigned_at)
+              SELECT c.id, co.id, z.id, 'ул. Строителей 3', 'ул. Победы 45',
+                     'COURIER_ASSIGNED',
+                     now() - interval '1 hour',
+                     now() - interval '50 min'
+              FROM clients c, couriers co, zones z
+              WHERE c.user_id = 1002 AND co.user_id = 2002
+                AND z.name = 'Первомайский';
+
+              INSERT INTO parcels (order_id, weight_kg, size, description)
+              SELECT o.id, 5.00, 'LARGE', 'Бытовая техника'
+              FROM orders o
+              WHERE o.pickup_address = 'ул. Строителей 3';
+
+              -- #5 PICKED_UP (20 минут назад), клиент 1001, курьер 2001, зона Центральный
+              INSERT INTO orders (client_id, courier_id, zone_id, pickup_address,
+                                  delivery_address, status,
+                                  created_at, assigned_at, picked_up_at)
+              SELECT c.id, co.id, z.id, 'ул. Пушкина 15', 'ул. Чехова 3',
+                     'PICKED_UP',
+                     now() - interval '1 hour',
+                     now() - interval '40 min',
+                     now() - interval '20 min'
+              FROM clients c, couriers co, zones z
+              WHERE c.user_id = 1001 AND co.user_id = 2001
+                AND z.name = 'Центральный';
+
+              INSERT INTO parcels (order_id, weight_kg, size, description)
+              SELECT o.id, 0.80, 'SMALL', 'Косметика'
+              FROM orders o
+              WHERE o.pickup_address = 'ул. Пушкина 15';
+
+              -- курьеры с активными заказами становятся BUSY
+              UPDATE couriers SET status = 'BUSY'
+              WHERE id IN (
+                SELECT DISTINCT courier_id FROM orders
+                WHERE courier_id IS NOT NULL
+                  AND status IN ('COURIER_ASSIGNED', 'PICKED_UP')
+              );
+
+  - changeSet:
+      id: 002-demo-reviews
+      author: delivery
+      context: demo
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO reviews (order_id, courier_id, rating, comment, created_at)
+              SELECT o.id, o.courier_id, 5, 'Быстро и вежливо',
+                     o.delivered_at + interval '2 hours'
+              FROM orders o
+              WHERE o.pickup_address = 'ул. Ленина 1'
+                AND o.delivery_address = 'ул. Мира 10';
+
+  - changeSet:
+      id: 002-demo-notifications
+      author: delivery
+      context: demo
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO notifications (user_id, text, type, is_read, created_at)
+              VALUES
+                (1001, 'По заказу назначен курьер Сидоров Пётр Алексеевич',
+                 'ORDER_ASSIGNED', TRUE,  now() - interval '10 days'),
+                (1001, 'Заказ доставлен', 'ORDER_STATUS_CHANGED', TRUE,
+                 now() - interval '10 days' + interval '1 hour'),
+                (1001, 'Новая заявка: ул. Садовая 12 → ул. Кирова 8',
+                 'NEW_ORDER_AVAILABLE', FALSE, now() - interval '30 min'),
+                (1002, 'Вам назначен заказ: ул. Строителей 3 → ул. Победы 45',
+                 'ORDER_ASSIGNED', FALSE, now() - interval '50 min'),
+                (2002, 'Вам назначен заказ: ул. Строителей 3 → ул. Победы 45',
+                 'ORDER_ASSIGNED', FALSE, now() - interval '50 min'),
+                (2001, 'Заказ: ул. Пушкина 15 → ул. Чехова 3 в пути',
+                 'ORDER_STATUS_CHANGED', FALSE, now() - interval '20 min');

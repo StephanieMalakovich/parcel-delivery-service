@@ -1,5 +1,5 @@
 package by.delivery.main_service.repository.entity;
 
-public enum CancellBy {
+public enum CancelledBy {
     CLIENT, ADMIN   
 }

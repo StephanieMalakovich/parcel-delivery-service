@@ -2,7 +2,7 @@ package by.delivery.main_service.dto;
 
 import java.time.LocalDateTime;
 
-import by.delivery.main_service.repository.entity.CancellBy;
+import by.delivery.main_service.repository.entity.CancelledBy;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 
@@ -15,7 +15,7 @@ public record OrderResponse(
         String pickupAddress,
         String deliveryAddress,
         ParcelResponse parcel,
-        CancellBy cancelledBy,
+        CancelledBy cancelledBy,
         LocalDateTime createdAt,
         LocalDateTime assignedAt,
         LocalDateTime pickedUpAt,
@@ -32,7 +32,7 @@ public record OrderResponse(
                 o.getPickupAddress(),
                 o.getDeliveryAddress(),
                 ParcelResponse.from(o.getParcel()),
-                o.getRole(),
+                o.getCancelledBy(),
                 o.getCreatedAt(),
                 o.getAssignedAt(),
                 o.getPickedUpAt(),

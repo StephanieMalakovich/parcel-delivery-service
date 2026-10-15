@@ -31,37 +31,16 @@ import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 import by.delivery.main_service.repository.entity.Zone;
 import by.delivery.main_service.service.OrderService;
+
 import jakarta.persistence.EntityNotFoundException;
 
-@SpringBootTest(properties = {
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.jpa.open-in-view=false",
-        "spring.sql.init.mode=never"
-})
+@SpringBootTest(properties = "spring.liquibase.contexts=test")
 @Import(TestcontainersConfiguration.class)
 @RecordApplicationEvents
 class OrderCancellationIntegrationTest {
 
     @Autowired
-    private OrderService orderService;
-
-    @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
-    private ClientRepository clientRepository;
-
-    @Autowired
-    private CourierRepository courierRepository;
-
-    @Autowired
-    private ZoneRepository zoneRepository;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private ApplicationEvents applicationEvents;
 
     @BeforeEach
     void cleanDatabase() {
@@ -79,8 +58,24 @@ class OrderCancellationIntegrationTest {
                 """);
     }
 
+    @Autowired
+    private OrderService orderService;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private ClientRepository clientRepository;
+
+    @Autowired
+    private CourierRepository courierRepository;
+
+    @Autowired
+    private ZoneRepository zoneRepository;
+
+
     @Test
-    void givenSearchingOrder_whenClientCancels_thenOrderIsCancelled() {
+    void givenSearchingOrder_whenClientCancels_thenOrderIsCancelled(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.SEARCHING_COURIER);
@@ -118,7 +113,7 @@ class OrderCancellationIntegrationTest {
     }
 
     @Test
-    void givenAssignedOrder_whenClientCancels_thenCourierIsReleased() {
+    void givenAssignedOrder_whenClientCancels_thenCourierIsReleased(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.COURIER_ASSIGNED);
@@ -179,7 +174,7 @@ class OrderCancellationIntegrationTest {
     }
 
     @Test
-    void givenAnotherClientsOrder_whenClientCancels_thenAccessIsDenied() {
+    void givenAnotherClientsOrder_whenClientCancels_thenAccessIsDenied(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.SEARCHING_COURIER);
@@ -214,8 +209,7 @@ class OrderCancellationIntegrationTest {
             "CANCELLED"
     })
     void givenNonCancellableOrder_whenClientCancels_thenRejected(
-            String statusName
-    ) {
+            String statusName, ApplicationEvents applicationEvents) {
         // Given
         OrderStatus initialStatus = OrderStatus.valueOf(statusName);
         Order order = createOrder(initialStatus);
@@ -238,7 +232,7 @@ class OrderCancellationIntegrationTest {
     }
 
     @Test
-    void givenMissingOrder_whenClientCancels_thenNotFound() {
+    void givenMissingOrder_whenClientCancels_thenNotFound(ApplicationEvents applicationEvents) {
 
         // Given
         Integer missingOrderId = 999999;

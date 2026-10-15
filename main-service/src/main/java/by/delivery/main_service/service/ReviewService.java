@@ -14,46 +14,38 @@ import by.delivery.main_service.repository.entity.OrderStatus;
 import by.delivery.main_service.repository.entity.Review;
 
 import jakarta.persistence.EntityNotFoundException;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class ReviewService {
 
+    private static final int MIN_RATING = 1;
+    private static final int MAX_RATING = 5;
+
     private final OrderRepository orderRepository;
     private final ReviewRepository reviewRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public void leaveReview(
-            Integer orderId,
-            Integer userId,
-            Integer rating,
-            String comment) {
+    public void leaveReview(Integer orderId, Integer userId, Integer rating, String comment) {
         validateInput(orderId, userId, rating);
 
         Order order = orderRepository.findWithLockById(orderId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Order not found: " + orderId));
+                .orElseThrow(() -> new EntityNotFoundException("Заказ не найден: " + orderId));
 
         if (!Objects.equals(order.getClient().getUserId(), userId)) {
-            throw new SecurityException(
-                    "Order does not belong to this client");
+            throw new SecurityException("Заказ не принадлежит этому клиенту");
         }
-
         if (order.getStatus() != OrderStatus.DELIVERED) {
-            throw new IllegalStateException(
-                    "Only delivered orders can be reviewed");
+            throw new IllegalStateException("Оценить можно только доставленный заказ");
         }
-
         if (order.getCourier() == null) {
-            throw new IllegalStateException(
-                    "Delivered order has no assigned courier");
+            throw new IllegalStateException("У доставленного заказа не назначен курьер");
         }
-
         if (reviewRepository.existsByOrder_Id(orderId)) {
-            throw new IllegalStateException(
-                    "Review already exists for order: " + orderId);
+            throw new IllegalStateException("Для заказа #" + orderId + " отзыв уже оставлен");
         }
 
         Review review = new Review();
@@ -62,31 +54,17 @@ public class ReviewService {
         review.setRating(rating.shortValue());
         review.setComment(comment);
 
-        Review savedReview = reviewRepository.saveAndFlush(review);
+        Review saved = reviewRepository.saveAndFlush(review);
 
-        NewReviewEvent event = new NewReviewEvent(
-                savedReview.getId(),
-                order.getId(),
-                order.getCourier().getId(),
-                savedReview.getRating().intValue(),
-                savedReview.getComment(),
-                savedReview.getCreatedAt());
-
-        eventPublisher.publishEvent(event);
+        eventPublisher.publishEvent(NewReviewEvent.from(saved));
     }
 
-    private void validateInput(
-            Integer orderId,
-            Integer userId,
-            Integer rating) {
+    private void validateInput(Integer orderId, Integer userId, Integer rating) {
         if (orderId == null || userId == null) {
-            throw new IllegalArgumentException(
-                    "orderId and userId must not be null");
+            throw new IllegalArgumentException("Идентификаторы заказа и пользователя обязательны");
         }
-
-        if (rating == null || rating < 1 || rating > 5) {
-            throw new IllegalArgumentException(
-                    "Rating must be between 1 and 5");
+        if (rating == null || rating < MIN_RATING || rating > MAX_RATING) {
+            throw new IllegalArgumentException("Оценка должна быть от " + MIN_RATING + " до " + MAX_RATING);
         }
     }
 }

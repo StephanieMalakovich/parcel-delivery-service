@@ -28,33 +28,16 @@ import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 import by.delivery.main_service.repository.entity.Zone;
 import by.delivery.main_service.service.CourierService;
+
 import jakarta.persistence.EntityNotFoundException;
 
+@SpringBootTest(properties = "spring.liquibase.contexts=test")
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest
 @RecordApplicationEvents
 class CourierServiceIntegrationTest {
 
     @Autowired
-    private CourierService courierService;
-
-    @Autowired
-    private OrderRepository orderRepository;
-
-    @Autowired
-    private ClientRepository clientRepository;
-
-    @Autowired
-    private CourierRepository courierRepository;
-
-    @Autowired
-    private ZoneRepository zoneRepository;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private ApplicationEvents applicationEvents;
 
     @BeforeEach
     void cleanDatabase() {
@@ -72,8 +55,23 @@ class CourierServiceIntegrationTest {
                 """);
     }
 
+    @Autowired
+    private CourierService courierService;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private ClientRepository clientRepository;
+
+    @Autowired
+    private CourierRepository courierRepository;
+
+    @Autowired
+    private ZoneRepository zoneRepository;
+
     @Test
-    void givenAssignedOrder_whenCourierPicksUp_thenStatusIsSaved() {
+    void givenAssignedOrder_whenCourierPicksUp_thenStatusIsSaved(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.COURIER_ASSIGNED);
@@ -111,7 +109,7 @@ class CourierServiceIntegrationTest {
     }
 
     @Test
-    void givenPickedUpOrder_whenCourierDelivers_thenStatusIsSaved() {
+    void givenPickedUpOrder_whenCourierDelivers_thenStatusIsSaved(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.PICKED_UP);
@@ -161,7 +159,7 @@ class CourierServiceIntegrationTest {
     }
 
     @Test
-    void givenAnotherCouriersOrder_whenCourierPicksUp_thenAccessIsDenied() {
+    void givenAnotherCouriersOrder_whenCourierPicksUp_thenAccessIsDenied(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.COURIER_ASSIGNED);
@@ -193,7 +191,7 @@ class CourierServiceIntegrationTest {
     }
 
     @Test
-    void givenAssignedOrder_whenDeliveredBeforePickup_thenTransitionIsRejected() {
+    void givenAssignedOrder_whenDeliveredBeforePickup_thenTransitionIsRejected(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.COURIER_ASSIGNED);
@@ -223,7 +221,7 @@ class CourierServiceIntegrationTest {
     }
 
     @Test
-    void givenAssignedOrder_whenAdminPicksUp_thenStatusIsSaved() {
+    void givenAssignedOrder_whenAdminPicksUp_thenStatusIsSaved(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.COURIER_ASSIGNED);
@@ -252,7 +250,7 @@ class CourierServiceIntegrationTest {
     }
 
     @Test
-    void givenMissingOrder_whenCourierPicksUp_thenNotFound() {
+    void givenMissingOrder_whenCourierPicksUp_thenNotFound(ApplicationEvents applicationEvents) {
 
         // Given
         Integer missingOrderId = 999999;

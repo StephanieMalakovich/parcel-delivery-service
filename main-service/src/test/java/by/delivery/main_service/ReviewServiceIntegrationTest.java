@@ -1,5 +1,22 @@
 package by.delivery.main_service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
+
 import by.delivery.main_service.event.NewReviewEvent;
 import by.delivery.main_service.repository.ClientRepository;
 import by.delivery.main_service.repository.CourierRepository;
@@ -14,35 +31,32 @@ import by.delivery.main_service.repository.entity.OrderStatus;
 import by.delivery.main_service.repository.entity.Review;
 import by.delivery.main_service.repository.entity.Zone;
 import by.delivery.main_service.service.ReviewService;
+
 import jakarta.persistence.EntityNotFoundException;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.event.ApplicationEvents;
-import org.springframework.test.context.event.RecordApplicationEvents;
-
-import java.time.LocalDateTime;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-@SpringBootTest(properties = {
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.jpa.open-in-view=false",
-        "spring.sql.init.mode=never"
-})
+@SpringBootTest(properties = "spring.liquibase.contexts=test")
 @Import(TestcontainersConfiguration.class)
 @RecordApplicationEvents
 class ReviewServiceIntegrationTest {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void cleanDatabase() {
+        jdbcTemplate.execute("""
+                TRUNCATE TABLE
+                    reviews,
+                    parcels,
+                    courier_zones,
+                    notifications,
+                    orders,
+                    clients,
+                    couriers,
+                    zones
+                RESTART IDENTITY CASCADE
+                """);
+    }
 
     @Autowired
     private ReviewService reviewService;
@@ -62,30 +76,9 @@ class ReviewServiceIntegrationTest {
     @Autowired
     private ZoneRepository zoneRepository;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Autowired
-    private ApplicationEvents applicationEvents;
-
-    @BeforeEach
-    void cleanDatabase() {
-        jdbcTemplate.execute("""
-                TRUNCATE TABLE
-                    reviews,
-                    parcels,
-                    courier_zones,
-                    notifications,
-                    orders,
-                    clients,
-                    couriers,
-                    zones
-                RESTART IDENTITY CASCADE
-                """);
-    }
 
     @Test
-    void givenDeliveredOrder_whenClientLeavesReview_thenReviewIsSaved() {
+    void givenDeliveredOrder_whenClientLeavesReview_thenReviewIsSaved(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.DELIVERED);
@@ -130,7 +123,7 @@ class ReviewServiceIntegrationTest {
     }
 
     @Test
-    void givenAnotherClientsOrder_whenReviewIsSubmitted_thenAccessIsDenied() {
+    void givenAnotherClientsOrder_whenReviewIsSubmitted_thenAccessIsDenied(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.DELIVERED);
@@ -156,7 +149,7 @@ class ReviewServiceIntegrationTest {
             "PICKED_UP"
     })
     void givenUndeliveredOrder_whenReviewIsSubmitted_thenRejected(
-            String statusName) {
+            String statusName, ApplicationEvents applicationEvents) {
         // Given
         OrderStatus status = OrderStatus.valueOf(statusName);
         Order order = createOrder(status);
@@ -176,7 +169,7 @@ class ReviewServiceIntegrationTest {
     }
 
     @Test
-    void givenExistingReview_whenSecondReviewIsSubmitted_thenRejected() {
+    void givenExistingReview_whenSecondReviewIsSubmitted_thenRejected(ApplicationEvents applicationEvents) {
 
         // Given
         Order order = createOrder(OrderStatus.DELIVERED);
@@ -206,7 +199,7 @@ class ReviewServiceIntegrationTest {
     @ParameterizedTest
     @ValueSource(ints = { 0, 6, -1, 10 })
     void givenInvalidRating_whenReviewIsSubmitted_thenRejected(
-            int rating) {
+            int rating, ApplicationEvents applicationEvents) {
         // Given
         Order order = createOrder(OrderStatus.DELIVERED);
 
@@ -225,7 +218,7 @@ class ReviewServiceIntegrationTest {
     }
 
     @Test
-    void givenMissingOrder_whenReviewIsSubmitted_thenNotFound() {
+    void givenMissingOrder_whenReviewIsSubmitted_thenNotFound(ApplicationEvents applicationEvents) {
 
         // Given
         Integer missingOrderId = 999999;

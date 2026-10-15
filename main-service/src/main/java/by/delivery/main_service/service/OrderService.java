@@ -28,7 +28,9 @@ import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 import by.delivery.main_service.repository.entity.Parcel;
 import by.delivery.main_service.repository.entity.Zone;
+
 import jakarta.persistence.EntityNotFoundException;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -67,6 +69,7 @@ public class OrderService {
         order.setParcel(parcel);
 
         Order saved = orderRepository.save(order);
+
         notifyCouriersOfZone(saved, zone);
         eventPublisher.publishEvent(NewOrderEvent.from(saved));
         return OrderResponse.from(saved);
@@ -76,8 +79,7 @@ public class OrderService {
     public OrderResponse acceptOrder(Integer courierUserId, Integer orderId) {
         Courier courier = courierRepository.findByUserId(courierUserId)
                 .orElseThrow(() -> new EntityNotFoundException("Профиль курьера не найден: " + courierUserId));
-        Order order = orderRepository.findWithLockById(orderId)
-                .orElseThrow(() -> new EntityNotFoundException("Заказ не найден: " + orderId));
+        Order order = loadOrderForUpdate(orderId);
 
         if (order.getStatus() != OrderStatus.SEARCHING_COURIER) {
             throw new IllegalStateException("Заявка #" + orderId + " уже назначена или недоступна");
@@ -85,7 +87,7 @@ public class OrderService {
         if (courier.getStatus() == CourierStatus.BUSY) {
             throw new IllegalStateException("Курьер занят");
         }
-        if (!courierZoneRepository.existsByCourier_IdAndZone_Id(courier.getId(), order.getZone().getId())) {
+        if (!servesZone(courier, order)) {
             throw new IllegalStateException("Курьер не обслуживает зону заказа");
         }
 
@@ -94,15 +96,35 @@ public class OrderService {
         order.setAssignedAt(LocalDateTime.now());
         courier.setStatus(CourierStatus.BUSY);
 
-        notificationService.notifyUsers(List.of(order.getClient().getUserId()), NotificationType.ORDER_ASSIGNED,
+        notificationService.notifyUser(order.getClient().getUserId(), NotificationType.ORDER_ASSIGNED,
                 "По заказу #" + orderId + " назначен курьер " + courier.getFullName());
         eventPublisher.publishEvent(OrderAcceptedEvent.from(order));
         return OrderResponse.from(order);
     }
 
     @Transactional
+    public OrderResponse cancelOrderByClient(Integer userId, Integer orderId) {
+        if (userId == null || orderId == null) {
+            throw new IllegalArgumentException("Идентификаторы пользователя и заказа обязательны");
+        }
+
+        Order order = loadOrderForUpdate(orderId);
+
+        if (!Objects.equals(order.getClient().getUserId(), userId)) {
+            throw new SecurityException("Заказ не принадлежит этому клиенту");
+        }
+        if (order.getStatus() != OrderStatus.SEARCHING_COURIER
+                && order.getStatus() != OrderStatus.COURIER_ASSIGNED) {
+            throw new IllegalStateException("Нельзя отменить заказ в статусе " + order.getStatus());
+        }
+
+        cancel(order, CancelledBy.CLIENT);
+        return OrderResponse.from(order);
+    }
+
+    @Transactional
     public OrderResponse reassignOrderByAdmin(Integer orderId, Integer newCourierId) {
-        Order order = loadNotFinished(orderId);
+        Order order = loadNotFinishedOrder(orderId);
         Courier next = courierRepository.findById(newCourierId)
                 .orElseThrow(() -> new EntityNotFoundException("Курьер не найден: " + newCourierId));
         Courier previous = order.getCourier();
@@ -113,7 +135,7 @@ public class OrderService {
         if (next.getStatus() == CourierStatus.BUSY) {
             throw new IllegalStateException("Новый курьер занят");
         }
-        if (!courierZoneRepository.existsByCourier_IdAndZone_Id(next.getId(), order.getZone().getId())) {
+        if (!servesZone(next, order)) {
             throw new IllegalStateException("Новый курьер не обслуживает зону заказа");
         }
 
@@ -125,17 +147,18 @@ public class OrderService {
             order.setStatus(OrderStatus.COURIER_ASSIGNED);
         }
         if (order.getStatus() == OrderStatus.COURIER_ASSIGNED) {
+            // У заказа в статусе PICKED_UP время назначения не меняется
             order.setAssignedAt(LocalDateTime.now());
         }
 
         if (previous != null) {
             previous.setStatus(CourierStatus.AVAILABLE);
-            notificationService.notifyUsers(List.of(previous.getUserId()), NotificationType.ORDER_CANCELLED,
+            notificationService.notifyUser(previous.getUserId(), NotificationType.ORDER_CANCELLED,
                     "Заказ #" + orderId + " снят администратором");
         }
-        notificationService.notifyUsers(List.of(next.getUserId()), NotificationType.ORDER_ASSIGNED,
+        notificationService.notifyUser(next.getUserId(), NotificationType.ORDER_ASSIGNED,
                 "Вам назначен заказ #" + orderId);
-        notificationService.notifyUsers(List.of(order.getClient().getUserId()), NotificationType.ORDER_STATUS_CHANGED,
+        notificationService.notifyUser(order.getClient().getUserId(), NotificationType.ORDER_STATUS_CHANGED,
                 "По заказу #" + orderId + " изменён курьер: " + next.getFullName());
 
         eventPublisher.publishEvent(OrderStatusChangedEvent.of(order, previousUserId, next.getUserId()));
@@ -144,115 +167,79 @@ public class OrderService {
 
     @Transactional
     public OrderResponse cancelOrderByAdmin(Integer orderId) {
-        Order order = loadNotFinished(orderId);
+        Order order = loadNotFinishedOrder(orderId);
+
+        cancel(order, CancelledBy.ADMIN);
+        return OrderResponse.from(order);
+    }
+
+    private void cancel(Order order, CancelledBy cancelledBy) {
         Courier courier = order.getCourier();
+        String who = cancelledBy == CancelledBy.ADMIN ? "администратором" : "клиентом";
 
         order.setStatus(OrderStatus.CANCELLED);
-        order.setCancelledBy(CancelledBy.ADMIN);
+        order.setCancelledBy(cancelledBy);
         order.setCancelledAt(LocalDateTime.now());
 
         Integer courierUserId = null;
         if (courier != null) {
             courierUserId = courier.getUserId();
             courier.setStatus(CourierStatus.AVAILABLE);
-            notificationService.notifyUsers(List.of(courierUserId), NotificationType.ORDER_CANCELLED,
-                    "Заказ #" + orderId + " отменён администратором");
+            notificationService.notifyUser(courierUserId, NotificationType.ORDER_CANCELLED,
+                    "Заказ #" + order.getId() + " отменён " + who);
         }
-        notificationService.notifyUsers(List.of(order.getClient().getUserId()), NotificationType.ORDER_STATUS_CHANGED,
-                "Заказ #" + orderId + " отменён администратором");
+        if (cancelledBy == CancelledBy.ADMIN) {
+            notificationService.notifyUser(order.getClient().getUserId(), NotificationType.ORDER_STATUS_CHANGED,
+                    "Заказ #" + order.getId() + " отменён " + who);
+        }
 
         eventPublisher.publishEvent(OrderStatusChangedEvent.of(order, courierUserId, null));
         eventPublisher.publishEvent(OrderCancelledEvent.from(order));
-        return OrderResponse.from(order);
     }
 
-    private Order loadNotFinished(Integer orderId) {
-        Order order = orderRepository.findWithLockById(orderId)
+    private Order loadOrderForUpdate(Integer orderId) {
+        return orderRepository.findWithLockById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Заказ не найден: " + orderId));
+    }
+
+    private Order loadNotFinishedOrder(Integer orderId) {
+        Order order = loadOrderForUpdate(orderId);
         if (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.CANCELLED) {
             throw new IllegalStateException("Заказ уже завершён: " + order.getStatus());
         }
         return order;
     }
 
+    private boolean servesZone(Courier courier, Order order) {
+        return courierZoneRepository.existsByCourier_IdAndZone_Id(courier.getId(), order.getZone().getId());
+    }
+
     private void notifyCouriersOfZone(Order order, Zone zone) {
         List<Integer> courierUserIds = courierZoneRepository.findByZone_Id(zone.getId()).stream()
                 .map(link -> link.getCourier().getUserId())
                 .toList();
+
         notificationService.notifyUsers(courierUserIds, NotificationType.NEW_ORDER_AVAILABLE,
                 "Новая заявка #" + order.getId() + " (" + zone.getName() + "): "
                         + order.getPickupAddress() + " → " + order.getDeliveryAddress());
     }
 
-    private static void validate(CreateOrderRequest r) {
-        if (r == null || r.zoneId() == null) {
+    private static void validate(CreateOrderRequest request) {
+        if (request == null || request.zoneId() == null) {
             throw new IllegalArgumentException("Не указана зона");
         }
-        if (isBlank(r.pickupAddress()) || isBlank(r.deliveryAddress())) {
+        if (isBlank(request.pickupAddress()) || isBlank(request.deliveryAddress())) {
             throw new IllegalArgumentException("Адреса отправления и получения обязательны");
         }
-        if (r.parcel() == null || r.parcel().size() == null) {
+        if (request.parcel() == null || request.parcel().size() == null) {
             throw new IllegalArgumentException("Не указаны параметры посылки");
         }
-        if (r.parcel().weightKg() == null || r.parcel().weightKg().signum() <= 0) {
+        if (request.parcel().weightKg() == null || request.parcel().weightKg().signum() <= 0) {
             throw new IllegalArgumentException("Вес посылки должен быть больше 0");
         }
     }
 
-    private static boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
-
-    @Transactional
-    public OrderResponse cancelOrderByClient(
-            Integer userId,
-            Integer orderId) {
-        if (userId == null || orderId == null) {
-            throw new IllegalArgumentException(
-                    "userId и orderId обязательны");
-        }
-
-        Order order = orderRepository.findWithLockById(orderId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Заказ не найден: " + orderId));
-
-        if (!Objects.equals(
-                order.getClient().getUserId(),
-                userId)) {
-            throw new SecurityException(
-                    "Заказ не принадлежит этому клиенту");
-        }
-
-        if (order.getStatus() != OrderStatus.SEARCHING_COURIER
-                && order.getStatus() != OrderStatus.COURIER_ASSIGNED) {
-            throw new IllegalStateException(
-                    "Нельзя отменить заказ в статусе: "
-                            + order.getStatus());
-        }
-
-        Courier courier = order.getCourier();
-
-        order.setStatus(OrderStatus.CANCELLED);
-        order.setCancelledBy(CancelledBy.CLIENT);
-        order.setCancelledAt(LocalDateTime.now());
-
-        if (courier != null) {
-            courier.setStatus(CourierStatus.AVAILABLE);
-
-            notificationService.notifyUsers(
-                    List.of(courier.getUserId()),
-                    NotificationType.ORDER_CANCELLED,
-                    "Заказ #" + orderId + " отменён клиентом");
-        }
-
-        orderRepository.save(order);
-
-        eventPublisher.publishEvent(
-                OrderStatusChangedEvent.from(order));
-
-        eventPublisher.publishEvent(
-                OrderCancelledEvent.from(order));
-
-        return OrderResponse.from(order);
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

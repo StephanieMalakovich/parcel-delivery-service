@@ -11,3 +11,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/002-demo-data.yaml
       context: demo
+
+  - include:
+      file: db/changelog/changes/003-check-constraints.yaml

@@ -9,7 +9,6 @@ import by.delivery.main_service.repository.entity.OrderStatus;
 import by.delivery.main_service.repository.entity.Parcel;
 import by.delivery.main_service.repository.entity.ParcelSize;
 
-
 public record NewOrderEvent(
         UUID eventId,
         String type,
@@ -27,7 +26,7 @@ public record NewOrderEvent(
     public static final String TYPE = "NEW_ORDER";
 
     public static NewOrderEvent from(Order order) {
-        Parcel p = order.getParcel();
+        Parcel parcel = order.getParcel();
         return new NewOrderEvent(
                 UUID.randomUUID(),
                 TYPE,
@@ -37,8 +36,8 @@ public record NewOrderEvent(
                 order.getClient().getId(),
                 order.getPickupAddress(),
                 order.getDeliveryAddress(),
-                p == null ? null : p.getWeightKg(),
-                p == null ? null : p.getSize(),
+                parcel == null ? null : parcel.getWeightKg(),
+                parcel == null ? null : parcel.getSize(),
                 order.getStatus(),
                 order.getCreatedAt());
     }

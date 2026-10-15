@@ -22,10 +22,18 @@ public record OrderAcceptedEvent(
 
     public static final String TYPE = "ORDER_ACCEPTED";
 
-    public static OrderAcceptedEvent from(Order o) {
-        return new OrderAcceptedEvent(UUID.randomUUID(), TYPE, LocalDateTime.now(),
-                o.getId(), o.getZone().getId(), o.getClient().getUserId(),
-                o.getCourier().getId(), o.getCourier().getUserId(), o.getCourier().getFullName(),
-                o.getStatus(), o.getAssignedAt());
+    public static OrderAcceptedEvent from(Order order) {
+        return new OrderAcceptedEvent(
+                UUID.randomUUID(),
+                TYPE,
+                LocalDateTime.now(),
+                order.getId(),
+                order.getZone().getId(),
+                order.getClient().getUserId(),
+                order.getCourier().getId(),
+                order.getCourier().getUserId(),
+                order.getCourier().getFullName(),
+                order.getStatus(),
+                order.getAssignedAt());
     }
 }

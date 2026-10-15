@@ -7,9 +7,9 @@ import by.delivery.main_service.repository.entity.CancelledBy;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 
-
 public record OrderCancelledEvent(
         UUID eventId,
+        String type,
         LocalDateTime occurredAt,
         Integer orderId,
         Integer courierId,
@@ -20,9 +20,20 @@ public record OrderCancelledEvent(
         LocalDateTime pickedUpAt,
         LocalDateTime cancelledAt) {
 
-    public static OrderCancelledEvent from(Order o) {
-        return new OrderCancelledEvent(UUID.randomUUID(), LocalDateTime.now(), o.getId(),
-                o.getCourier() == null ? null : o.getCourier().getId(),
-                o.getStatus(), o.getCancelledBy(), o.getCreatedAt(), o.getAssignedAt(), o.getPickedUpAt(), o.getCancelledAt());
+    public static final String TYPE = "ORDER_CANCELLED";
+
+    public static OrderCancelledEvent from(Order order) {
+        return new OrderCancelledEvent(
+                UUID.randomUUID(),
+                TYPE,
+                LocalDateTime.now(),
+                order.getId(),
+                order.getCourier() == null ? null : order.getCourier().getId(),
+                order.getStatus(),
+                order.getCancelledBy(),
+                order.getCreatedAt(),
+                order.getAssignedAt(),
+                order.getPickedUpAt(),
+                order.getCancelledAt());
     }
 }

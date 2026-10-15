@@ -1,0 +1,42 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 003-check-constraints
+      author: delivery
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE couriers
+                  ADD CONSTRAINT ck_couriers_status CHECK (status IN ('AVAILABLE', 'BUSY'));
+
+              ALTER TABLE orders
+                  ADD CONSTRAINT ck_orders_status
+                  CHECK (status IN ('SEARCHING_COURIER', 'COURIER_ASSIGNED', 'PICKED_UP', 'DELIVERED', 'CANCELLED'));
+
+              ALTER TABLE orders
+                  ADD CONSTRAINT ck_orders_cancelled_by
+                  CHECK (cancelled_by IS NULL OR cancelled_by IN ('CLIENT', 'ADMIN'));
+
+              ALTER TABLE parcels
+                  ADD CONSTRAINT ck_parcels_size CHECK (size IN ('SMALL', 'MEDIUM', 'LARGE'));
+
+              ALTER TABLE parcels
+                  ADD CONSTRAINT ck_parcels_weight CHECK (weight_kg IS NULL OR weight_kg > 0);
+
+              ALTER TABLE reviews
+                  ADD CONSTRAINT ck_reviews_rating CHECK (rating BETWEEN 1 AND 5);
+
+              ALTER TABLE notifications
+                  ADD CONSTRAINT ck_notifications_type
+                  CHECK (type IN ('NEW_ORDER_AVAILABLE', 'ORDER_ASSIGNED', 'ORDER_STATUS_CHANGED',
+                                  'ORDER_CANCELLED', 'NEW_REVIEW'));
+      rollback:
+        - sql:
+            sql: |
+              ALTER TABLE notifications DROP CONSTRAINT ck_notifications_type;
+              ALTER TABLE reviews DROP CONSTRAINT ck_reviews_rating;
+              ALTER TABLE parcels DROP CONSTRAINT ck_parcels_weight;
+              ALTER TABLE parcels DROP CONSTRAINT ck_parcels_size;
+              ALTER TABLE orders DROP CONSTRAINT ck_orders_cancelled_by;
+              ALTER TABLE orders DROP CONSTRAINT ck_orders_status;
+              ALTER TABLE couriers DROP CONSTRAINT ck_couriers_status;

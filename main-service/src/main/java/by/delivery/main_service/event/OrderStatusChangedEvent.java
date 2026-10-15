@@ -9,6 +9,7 @@ import by.delivery.main_service.repository.entity.OrderStatus;
 
 public record OrderStatusChangedEvent(
         UUID eventId,
+        String type,
         LocalDateTime occurredAt,
         Integer orderId,
         OrderStatus status,
@@ -23,14 +24,29 @@ public record OrderStatusChangedEvent(
         LocalDateTime deliveredAt,
         LocalDateTime cancelledAt) {
 
-    public static OrderStatusChangedEvent from(Order o) {
-        return of(o, null, o.getCourier() == null ? null : o.getCourier().getUserId());
+    public static final String TYPE = "ORDER_STATUS_CHANGED";
+
+    public static OrderStatusChangedEvent from(Order order) {
+        Integer courierUserId = order.getCourier() == null ? null : order.getCourier().getUserId();
+        return of(order, null, courierUserId);
     }
 
-    public static OrderStatusChangedEvent of(Order o, Integer previousCourierUserId, Integer courierUserId) {
-        return new OrderStatusChangedEvent(UUID.randomUUID(), LocalDateTime.now(),
-                o.getId(), o.getStatus(), o.getCancelledBy(), o.getZone().getId(),
-                o.getClient().getUserId(), previousCourierUserId, courierUserId,
-                o.getCreatedAt(), o.getAssignedAt(), o.getPickedUpAt(), o.getDeliveredAt(), o.getCancelledAt());
+    public static OrderStatusChangedEvent of(Order order, Integer previousCourierUserId, Integer courierUserId) {
+        return new OrderStatusChangedEvent(
+                UUID.randomUUID(),
+                TYPE,
+                LocalDateTime.now(),
+                order.getId(),
+                order.getStatus(),
+                order.getCancelledBy(),
+                order.getZone().getId(),
+                order.getClient().getUserId(),
+                previousCourierUserId,
+                courierUserId,
+                order.getCreatedAt(),
+                order.getAssignedAt(),
+                order.getPickedUpAt(),
+                order.getDeliveredAt(),
+                order.getCancelledAt());
     }
 }

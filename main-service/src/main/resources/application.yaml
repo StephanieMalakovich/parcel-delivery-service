@@ -1,8 +1,28 @@
 spring:
   application:
     name: main-service
+
+  datasource:
+    url: ${PRIMARY_DB_URL:jdbc:postgresql://localhost:5432/primarydb}
+    username: ${PRIMARY_DB_USER:postgres}
+    password: ${PRIMARY_DB_PASSWORD:dev_password}
+    driver-class-name: org.postgresql.Driver
+
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: validate
     show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+    contexts: ${LIQUIBASE_CONTEXTS:}
+
+logging:
+  level:
+    liquibase: INFO

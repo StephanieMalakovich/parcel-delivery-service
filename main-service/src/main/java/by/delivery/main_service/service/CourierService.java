@@ -11,6 +11,7 @@ import by.delivery.main_service.event.OrderStatusChangedEvent;
 import by.delivery.main_service.repository.CourierRepository;
 import by.delivery.main_service.repository.OrderRepository;
 import by.delivery.main_service.repository.entity.Courier;
+import by.delivery.main_service.repository.entity.CourierStatus;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 import jakarta.persistence.EntityNotFoundException;
@@ -59,7 +60,7 @@ public class CourierService {
     }
 
     private Order getOrderForUpdate(Integer orderId) {
-        return orderRepository.findByIdForUpdate(orderId)
+        return orderRepository.findWithLockById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Order not found: " + orderId));
     }
@@ -112,6 +113,7 @@ public class CourierService {
                 }
 
                 order.setDeliveredAt(now);
+                order.getCourier().setStatus(CourierStatus.AVAILABLE);
             }
 
             default -> throw new IllegalArgumentException(
@@ -122,16 +124,7 @@ public class CourierService {
 
         orderRepository.save(order);
 
-        OrderStatusChangedEvent event = new OrderStatusChangedEvent(
-                order.getId(),
-                order.getStatus(),
-                order.getClient().getUserId(),
-                order.getCreatedAt(),
-                order.getAssignedAt(),
-                order.getPickedUpAt(),
-                order.getDeliveredAt());
-
-        eventPublisher.publishEvent(event);
+        eventPublisher.publishEvent(OrderStatusChangedEvent.from(order));
     }
 
 }

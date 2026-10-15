@@ -7,8 +7,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
@@ -36,7 +34,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
             OrderStatus status,
             Pageable pageable);
 
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT o FROM Order o WHERE o.id = :id")
-    Optional<Order> findByIdForUpdate(@Param("id") Integer id);
+    Optional<Order> findWithLockById(Integer id);
 }

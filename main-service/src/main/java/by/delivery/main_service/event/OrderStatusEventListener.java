@@ -20,9 +20,11 @@ public class OrderStatusEventListener {
                 event.status());
 
         log.info(
-                "[SOCKET SERVICE] Would notify client userId={} "
+                "[SOCKET SERVICE] Would notify client userId={}, courier userId={} (previous={}) "
                         + "and admins: orderId={}, status={}",
-                event.userId(),
+                event.clientUserId(),
+                event.courierUserId(),
+                event.previousCourierUserId(),
                 event.orderId(),
                 event.status());
 

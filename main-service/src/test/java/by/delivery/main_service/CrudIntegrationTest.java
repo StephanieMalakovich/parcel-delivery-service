@@ -212,7 +212,7 @@ class CrudIntegrationTest {
         parcel.setSize(ParcelSize.MEDIUM);
         order.setParcel(parcel);
 
-        // When: создание (посылка сохраняется каскадом)
+        // When: создание
         Order saved = orderRepository.saveAndFlush(order);
 
         // Then

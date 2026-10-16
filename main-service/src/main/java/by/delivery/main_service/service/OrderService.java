@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ import jakarta.persistence.EntityNotFoundException;
 
 import lombok.RequiredArgsConstructor;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderService {
@@ -147,7 +149,6 @@ public class OrderService {
             order.setStatus(OrderStatus.COURIER_ASSIGNED);
         }
         if (order.getStatus() == OrderStatus.COURIER_ASSIGNED) {
-            // У заказа в статусе PICKED_UP время назначения не меняется
             order.setAssignedAt(LocalDateTime.now());
         }
 

@@ -44,9 +44,9 @@ public record OrderStatusChangedEvent(
                 previousCourierUserId,
                 courierUserId,
                 order.getCreatedAt(),
-                order.getAssignedAt(),
-                order.getPickedUpAt(),
-                order.getDeliveredAt(),
-                order.getCancelledAt());
+                order.findStatusTime(OrderStatus.COURIER_ASSIGNED),
+                order.findStatusTime(OrderStatus.PICKED_UP),
+                order.findStatusTime(OrderStatus.DELIVERED),
+                order.findStatusTime(OrderStatus.CANCELLED));
     }
 }

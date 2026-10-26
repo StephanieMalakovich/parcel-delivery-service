@@ -6,11 +6,14 @@ import java.util.Objects;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import by.delivery.main_service.dto.CreateOrderRequest;
 import by.delivery.main_service.dto.OrderResponse;
+import by.delivery.main_service.dto.PageResponse;
 import by.delivery.main_service.event.NewOrderEvent;
 import by.delivery.main_service.event.OrderAcceptedEvent;
 import by.delivery.main_service.event.OrderCancelledEvent;
@@ -61,7 +64,7 @@ public class OrderService {
         order.setZone(zone);
         order.setPickupAddress(request.pickupAddress());
         order.setDeliveryAddress(request.deliveryAddress());
-        order.setStatus(OrderStatus.SEARCHING_COURIER);
+        order.changeStatus(OrderStatus.SEARCHING_COURIER, LocalDateTime.now());
 
         Parcel parcel = new Parcel();
         parcel.setOrder(order);
@@ -94,8 +97,7 @@ public class OrderService {
         }
 
         order.setCourier(courier);
-        order.setStatus(OrderStatus.COURIER_ASSIGNED);
-        order.setAssignedAt(LocalDateTime.now());
+        order.changeStatus(OrderStatus.COURIER_ASSIGNED, LocalDateTime.now());
         courier.setStatus(CourierStatus.BUSY);
 
         notificationService.notifyUser(order.getClient().getUserId(), NotificationType.ORDER_ASSIGNED,
@@ -146,10 +148,9 @@ public class OrderService {
         order.setCourier(next);
         next.setStatus(CourierStatus.BUSY);
         if (order.getStatus() == OrderStatus.SEARCHING_COURIER) {
-            order.setStatus(OrderStatus.COURIER_ASSIGNED);
-        }
-        if (order.getStatus() == OrderStatus.COURIER_ASSIGNED) {
-            order.setAssignedAt(LocalDateTime.now());
+            order.changeStatus(OrderStatus.COURIER_ASSIGNED, LocalDateTime.now());
+        } else if (order.getStatus() == OrderStatus.COURIER_ASSIGNED) {
+            order.addStatusHistory(OrderStatus.COURIER_ASSIGNED, LocalDateTime.now());
         }
 
         if (previous != null) {
@@ -174,13 +175,61 @@ public class OrderService {
         return OrderResponse.from(order);
     }
 
+    @Transactional(readOnly = true)
+    public OrderResponse getOrder(Integer orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Заказ не найден: " + orderId));
+        return OrderResponse.from(order);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getClientOrders(Integer userId, Pageable pageable) {
+        Client client = clientRepository.findByUserId(userId)
+                .orElseThrow(() -> new EntityNotFoundException("Профиль клиента не найден: " + userId));
+        return toPage(orderRepository.findByClient_Id(client.getId(), pageable));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getCourierOrders(Integer courierUserId, OrderStatus status, Pageable pageable) {
+        Courier courier = courierRepository.findByUserId(courierUserId)
+                .orElseThrow(() -> new EntityNotFoundException("Профиль курьера не найден: " + courierUserId));
+        if (status == null) {
+            return toPage(orderRepository.findByCourier_Id(courier.getId(), pageable));
+        }
+        return toPage(orderRepository.findByCourier_IdAndStatus(courier.getId(), status, pageable));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getAvailableOrders(Integer courierUserId, Pageable pageable) {
+        Courier courier = courierRepository.findByUserId(courierUserId)
+                .orElseThrow(() -> new EntityNotFoundException("Профиль курьера не найден: " + courierUserId));
+        List<Integer> zoneIds = courierZoneRepository.findByCourier_Id(courier.getId()).stream()
+                .map(link -> link.getId().getZoneId())
+                .toList();
+        if (zoneIds.isEmpty()) {
+            return PageResponse.of(Page.empty(pageable));
+        }
+        return toPage(orderRepository.findByStatusAndZone_IdIn(OrderStatus.SEARCHING_COURIER, zoneIds, pageable));
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OrderResponse> getAllOrders(OrderStatus status, Pageable pageable) {
+        if (status == null) {
+            return toPage(orderRepository.findAll(pageable));
+        }
+        return toPage(orderRepository.findByStatus(status, pageable));
+    }
+
+    private PageResponse<OrderResponse> toPage(Page<Order> orders) {
+        return PageResponse.of(orders.map(OrderResponse::from));
+    }
+
     private void cancel(Order order, CancelledBy cancelledBy) {
         Courier courier = order.getCourier();
         String who = cancelledBy == CancelledBy.ADMIN ? "администратором" : "клиентом";
 
-        order.setStatus(OrderStatus.CANCELLED);
+        order.changeStatus(OrderStatus.CANCELLED, LocalDateTime.now());
         order.setCancelledBy(cancelledBy);
-        order.setCancelledAt(LocalDateTime.now());
 
         Integer courierUserId = null;
         if (courier != null) {

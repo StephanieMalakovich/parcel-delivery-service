@@ -261,17 +261,19 @@ class ReviewServiceIntegrationTest {
         order.setDeliveryAddress("Delivery address");
         order.setStatus(status);
 
+        order.addStatusHistory(OrderStatus.SEARCHING_COURIER, now.minusMinutes(15));
+
         if (status != OrderStatus.SEARCHING_COURIER) {
-            order.setAssignedAt(now.minusMinutes(10));
+            order.addStatusHistory(OrderStatus.COURIER_ASSIGNED, now.minusMinutes(10));
         }
 
         if (status == OrderStatus.PICKED_UP
                 || status == OrderStatus.DELIVERED) {
-            order.setPickedUpAt(now.minusMinutes(5));
+            order.addStatusHistory(OrderStatus.PICKED_UP, now.minusMinutes(5));
         }
 
         if (status == OrderStatus.DELIVERED) {
-            order.setDeliveredAt(now.minusMinutes(1));
+            order.addStatusHistory(OrderStatus.DELIVERED, now.minusMinutes(1));
         }
 
         return orderRepository.saveAndFlush(order);

@@ -1,5 +1,6 @@
 package by.delivery.main_service.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,6 +29,17 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     List<Order> findByZone_IdAndStatusAndCourierIsNull(
             Integer zoneId,
             OrderStatus status);
+
+    // Все заказы курьера
+    Page<Order> findByCourier_Id(
+            Integer courierId,
+            Pageable pageable);
+
+    // Заказы с определённым статусом в одной из перечисленных зон (доступные заявки курьера)
+    Page<Order> findByStatusAndZone_IdIn(
+            OrderStatus status,
+            Collection<Integer> zoneIds,
+            Pageable pageable);
 
     // Заказы с определённым статусом
     Page<Order> findByStatus(

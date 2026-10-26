@@ -34,6 +34,6 @@ public record OrderAcceptedEvent(
                 order.getCourier().getUserId(),
                 order.getCourier().getFullName(),
                 order.getStatus(),
-                order.getAssignedAt());
+                order.findStatusTime(OrderStatus.COURIER_ASSIGNED));
     }
 }

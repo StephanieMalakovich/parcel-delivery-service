@@ -185,7 +185,7 @@ class OrderServiceIntegrationTest {
         // Then
         assertThat(accepted.status()).isEqualTo(OrderStatus.COURIER_ASSIGNED);
         assertThat(accepted.courierId()).isEqualTo(courier.getId());
-        assertThat(accepted.assignedAt()).isNotNull();
+        assertThat(accepted.statusTime(OrderStatus.COURIER_ASSIGNED)).isNotNull();
         assertThat(courierStatus(courier)).isEqualTo(CourierStatus.BUSY);
         assertThat(countNotifications(client.getUserId(), NotificationType.ORDER_ASSIGNED)).isEqualTo(1);
 
@@ -326,7 +326,7 @@ class OrderServiceIntegrationTest {
 
         // Then
         assertThat(assigned.status()).isEqualTo(OrderStatus.COURIER_ASSIGNED);
-        assertThat(assigned.assignedAt()).isNotNull();
+        assertThat(assigned.statusTime(OrderStatus.COURIER_ASSIGNED)).isNotNull();
 
         // When / Then: тот же курьер, занятый курьер и курьер чужой зоны отклоняются
         assertThatThrownBy(() -> orderService.reassignOrderByAdmin(searching.id(), a.getId()))
@@ -370,7 +370,7 @@ class OrderServiceIntegrationTest {
         // Then
         assertThat(cancelled.status()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(cancelled.cancelledBy()).isEqualTo(CancelledBy.ADMIN);
-        assertThat(cancelled.cancelledAt()).isNotNull();
+        assertThat(cancelled.statusTime(OrderStatus.CANCELLED)).isNotNull();
         assertThat(cancelled.courierId()).isEqualTo(courier.getId());
         assertThat(courierStatus(courier)).isEqualTo(CourierStatus.AVAILABLE);
         assertThat(countNotifications(courier.getUserId(), NotificationType.ORDER_CANCELLED)).isEqualTo(1);

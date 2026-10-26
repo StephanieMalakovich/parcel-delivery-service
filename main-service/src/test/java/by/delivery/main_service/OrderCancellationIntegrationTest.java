@@ -21,6 +21,7 @@ import by.delivery.main_service.event.OrderCancelledEvent;
 import by.delivery.main_service.repository.ClientRepository;
 import by.delivery.main_service.repository.CourierRepository;
 import by.delivery.main_service.repository.OrderRepository;
+import by.delivery.main_service.repository.OrderStatusHistoryRepository;
 import by.delivery.main_service.repository.ZoneRepository;
 import by.delivery.main_service.repository.entity.CancelledBy;
 import by.delivery.main_service.repository.entity.Client;
@@ -29,6 +30,7 @@ import by.delivery.main_service.repository.entity.CourierStatus;
 import by.delivery.main_service.repository.entity.NotificationType;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
+import by.delivery.main_service.repository.entity.OrderStatusHistory;
 import by.delivery.main_service.repository.entity.Zone;
 import by.delivery.main_service.service.OrderService;
 
@@ -73,6 +75,9 @@ class OrderCancellationIntegrationTest {
     @Autowired
     private ZoneRepository zoneRepository;
 
+    @Autowired
+    private OrderStatusHistoryRepository historyRepository;
+
 
     @Test
     void givenSearchingOrder_whenClientCancels_thenOrderIsCancelled(ApplicationEvents applicationEvents) {
@@ -94,7 +99,7 @@ class OrderCancellationIntegrationTest {
         assertThat(saved.getCancelledBy())
                 .isEqualTo(CancelledBy.CLIENT);
 
-        assertThat(saved.getCancelledAt()).isNotNull();
+        assertThat(statusTime(orderId, OrderStatus.CANCELLED)).isNotNull();
         assertThat(saved.getCourier()).isNull();
 
         OrderCancelledEvent event = applicationEvents
@@ -133,7 +138,7 @@ class OrderCancellationIntegrationTest {
         assertThat(saved.getCancelledBy())
                 .isEqualTo(CancelledBy.CLIENT);
 
-        assertThat(saved.getCancelledAt()).isNotNull();
+        assertThat(statusTime(orderId, OrderStatus.CANCELLED)).isNotNull();
 
         Integer persistedCourierId = jdbcTemplate.queryForObject(
                 "SELECT courier_id FROM orders WHERE id = ?",
@@ -193,7 +198,7 @@ class OrderCancellationIntegrationTest {
                 .isEqualTo(OrderStatus.SEARCHING_COURIER);
 
         assertThat(saved.getCancelledBy()).isNull();
-        assertThat(saved.getCancelledAt()).isNull();
+        assertThat(statusTime(orderId, OrderStatus.CANCELLED)).isNull();
 
         assertThat(
                 applicationEvents.stream(OrderCancelledEvent.class).count()
@@ -289,22 +294,24 @@ class OrderCancellationIntegrationTest {
         order.setDeliveryAddress("Delivery address");
         order.setStatus(status);
 
+        order.addStatusHistory(OrderStatus.SEARCHING_COURIER, now.minusMinutes(15));
+
         if (courier != null) {
-            order.setAssignedAt(now.minusMinutes(10));
+            order.addStatusHistory(OrderStatus.COURIER_ASSIGNED, now.minusMinutes(10));
         }
 
         if (status == OrderStatus.PICKED_UP
                 || status == OrderStatus.DELIVERED) {
-            order.setPickedUpAt(now.minusMinutes(5));
+            order.addStatusHistory(OrderStatus.PICKED_UP, now.minusMinutes(5));
         }
 
         if (status == OrderStatus.DELIVERED) {
-            order.setDeliveredAt(now.minusMinutes(1));
+            order.addStatusHistory(OrderStatus.DELIVERED, now.minusMinutes(1));
         }
 
         if (status == OrderStatus.CANCELLED) {
             order.setCancelledBy(CancelledBy.CLIENT);
-            order.setCancelledAt(now.minusMinutes(1));
+            order.addStatusHistory(OrderStatus.CANCELLED, now.minusMinutes(1));
         }
 
         return orderRepository.saveAndFlush(order);
@@ -317,5 +324,12 @@ class OrderCancellationIntegrationTest {
         courier.setStatus(CourierStatus.BUSY);
 
         return courierRepository.saveAndFlush(courier);
+    }
+
+    private LocalDateTime statusTime(Integer orderId, OrderStatus status) {
+        return historyRepository
+                .findFirstByOrder_IdAndStatusOrderByChangedAtDescIdDesc(orderId, status)
+                .map(OrderStatusHistory::getChangedAt)
+                .orElse(null);
     }
 }

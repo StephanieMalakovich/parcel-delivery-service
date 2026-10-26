@@ -74,7 +74,7 @@ class OrderApiIntegrationTest {
         createCourier(COURIER_USER_ID, zoneId);
 
         // When: заказчик создаёт заказ
-        MvcResult created = send(post("/orders"), CLIENT_USER_ID, orderJson(zoneId, "1.50"))
+        MvcResult created = send(post("/api/v1/orders"), CLIENT_USER_ID, orderJson(zoneId, "1.50"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status", is("SEARCHING_COURIER")))
                 .andExpect(jsonPath("$.courierId").doesNotExist())
@@ -84,53 +84,53 @@ class OrderApiIntegrationTest {
         int orderId = JsonPath.read(body(created), "$.id");
 
         // Then: курьер видит заявку среди доступных
-        send(get("/orders/available"), COURIER_USER_ID, null)
+        send(get("/api/v1/orders/available"), COURIER_USER_ID, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(1)))
                 .andExpect(jsonPath("$.content[0].id", is(orderId)));
 
         // When / Then: курьер принимает заявку
-        send(post("/orders/" + orderId + "/accept"), COURIER_USER_ID, null)
+        send(post("/api/v1/orders/" + orderId + "/accept"), COURIER_USER_ID, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("COURIER_ASSIGNED")));
 
         // When / Then: курьер забрал посылку
-        send(patch("/orders/" + orderId + "/status"), COURIER_USER_ID, "{\"status\": \"PICKED_UP\"}")
+        send(patch("/api/v1/orders/" + orderId + "/status"), COURIER_USER_ID, "{\"status\": \"PICKED_UP\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("PICKED_UP")));
 
         // When / Then: курьер доставил посылку
-        send(patch("/orders/" + orderId + "/status"), COURIER_USER_ID, "{\"status\": \"DELIVERED\"}")
+        send(patch("/api/v1/orders/" + orderId + "/status"), COURIER_USER_ID, "{\"status\": \"DELIVERED\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("DELIVERED")))
                 .andExpect(jsonPath("$.statusHistory", hasSize(4)));
 
         // When / Then: заказчик оценивает курьера
-        send(post("/orders/" + orderId + "/review"), CLIENT_USER_ID, "{\"rating\": 5, \"comment\": \"Быстро\"}")
+        send(post("/api/v1/orders/" + orderId + "/review"), CLIENT_USER_ID, "{\"rating\": 5, \"comment\": \"Быстро\"}")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.rating", is(5)))
                 .andExpect(jsonPath("$.orderId", is(orderId)));
 
         // Then: история заказов заказчика и заказов курьера
-        send(get("/orders/my"), CLIENT_USER_ID, null)
+        send(get("/api/v1/orders/my"), CLIENT_USER_ID, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(1)));
-        send(get("/orders/assigned?status=DELIVERED"), COURIER_USER_ID, null)
+        send(get("/api/v1/orders/assigned?status=DELIVERED"), COURIER_USER_ID, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(1)));
 
         // Then: у заказчика есть непрочитанное уведомление, его можно прочитать
-        MvcResult notifications = send(get("/notifications?unreadOnly=true"), CLIENT_USER_ID, null)
+        MvcResult notifications = send(get("/api/v1/notifications?unreadOnly=true"), CLIENT_USER_ID, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(1)))
                 .andExpect(jsonPath("$.content[0].type", is("ORDER_ASSIGNED")))
                 .andReturn();
         int notificationId = JsonPath.read(body(notifications), "$.content[0].id");
 
-        send(patch("/notifications/" + notificationId + "/read"), CLIENT_USER_ID, null)
+        send(patch("/api/v1/notifications/" + notificationId + "/read"), CLIENT_USER_ID, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.read", is(true)));
-        send(get("/notifications/unread-count"), CLIENT_USER_ID, null)
+        send(get("/api/v1/notifications/unread-count"), CLIENT_USER_ID, null)
                 .andExpect(jsonPath("$.count", is(0)));
     }
 
@@ -143,7 +143,7 @@ class OrderApiIntegrationTest {
         int orderId = createOrder(zoneId);
 
         // When / Then
-        send(post("/orders/" + orderId + "/cancel"), CLIENT_USER_ID, null)
+        send(post("/api/v1/orders/" + orderId + "/cancel"), CLIENT_USER_ID, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("CANCELLED")))
                 .andExpect(jsonPath("$.cancelledBy", is("CLIENT")))
@@ -159,23 +159,23 @@ class OrderApiIntegrationTest {
         createCourier(COURIER_USER_ID, zoneId);
         int secondCourierId = createCourier(2002, zoneId);
         int orderId = createOrder(zoneId);
-        send(post("/orders/" + orderId + "/accept"), COURIER_USER_ID, null).andExpect(status().isOk());
+        send(post("/api/v1/orders/" + orderId + "/accept"), COURIER_USER_ID, null).andExpect(status().isOk());
 
         // When / Then: администратор переназначает курьера
-        send(patch("/orders/" + orderId), null,
+        send(patch("/api/v1/orders/" + orderId), null,
                 "{\"action\": \"REASSIGN\", \"courierId\": " + secondCourierId + "}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.courierId", is(secondCourierId)))
                 .andExpect(jsonPath("$.status", is("COURIER_ASSIGNED")));
 
         // When / Then: администратор отменяет заказ
-        send(patch("/orders/" + orderId), null, "{\"action\": \"CANCEL\"}")
+        send(patch("/api/v1/orders/" + orderId), null, "{\"action\": \"CANCEL\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("CANCELLED")))
                 .andExpect(jsonPath("$.cancelledBy", is("ADMIN")));
 
         // Then: администратор видит заказ в общей истории с фильтром по статусу
-        send(get("/orders?status=CANCELLED"), null, null)
+        send(get("/api/v1/orders?status=CANCELLED"), null, null)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements", is(1)));
     }
@@ -192,57 +192,57 @@ class OrderApiIntegrationTest {
         int orderId = createOrder(zoneId);
 
         // 400: отрицательный вес посылки
-        send(post("/orders"), CLIENT_USER_ID, orderJson(zoneId, "-1"))
+        send(post("/api/v1/orders"), CLIENT_USER_ID, orderJson(zoneId, "-1"))
                 .andExpect(status().isBadRequest());
         // 400: пустой адрес
-        send(post("/orders"), CLIENT_USER_ID,
+        send(post("/api/v1/orders"), CLIENT_USER_ID,
                 "{\"zoneId\": " + zoneId + ", \"pickupAddress\": \" \", \"deliveryAddress\": \"B\","
                         + " \"parcel\": {\"weightKg\": 1, \"size\": \"SMALL\"}}")
                 .andExpect(status().isBadRequest());
         // 400: неизвестный размер посылки
-        send(post("/orders"), CLIENT_USER_ID,
+        send(post("/api/v1/orders"), CLIENT_USER_ID,
                 "{\"zoneId\": " + zoneId + ", \"pickupAddress\": \"A\", \"deliveryAddress\": \"B\","
                         + " \"parcel\": {\"weightKg\": 1, \"size\": \"HUGE\"}}")
                 .andExpect(status().isBadRequest());
         // 400: нет заголовка с идентификатором пользователя
-        mockMvc.perform(post("/orders").contentType(MediaType.APPLICATION_JSON).content(orderJson(zoneId, "1")))
+        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content(orderJson(zoneId, "1")))
                 .andExpect(status().isBadRequest());
         // 400: оценка вне диапазона
-        send(post("/orders/" + orderId + "/review"), CLIENT_USER_ID, "{\"rating\": 6}")
+        send(post("/api/v1/orders/" + orderId + "/review"), CLIENT_USER_ID, "{\"rating\": 6}")
                 .andExpect(status().isBadRequest());
         // 400: переназначение без курьера
-        send(patch("/orders/" + orderId), null, "{\"action\": \"REASSIGN\"}")
+        send(patch("/api/v1/orders/" + orderId), null, "{\"action\": \"REASSIGN\"}")
                 .andExpect(status().isBadRequest());
         // 404: нет такого заказа
-        send(get("/orders/999999"), null, null)
+        send(get("/api/v1/orders/999999"), null, null)
                 .andExpect(status().isNotFound());
         // 403: чужой заказ нельзя отменить
-        send(post("/orders/" + orderId + "/cancel"), 1002, null)
+        send(post("/api/v1/orders/" + orderId + "/cancel"), 1002, null)
                 .andExpect(status().isForbidden());
         // 409: вторая попытка принять уже принятую заявку
-        send(post("/orders/" + orderId + "/accept"), COURIER_USER_ID, null).andExpect(status().isOk());
-        send(post("/orders/" + orderId + "/accept"), 2002, null)
+        send(post("/api/v1/orders/" + orderId + "/accept"), COURIER_USER_ID, null).andExpect(status().isOk());
+        send(post("/api/v1/orders/" + orderId + "/accept"), 2002, null)
                 .andExpect(status().isConflict());
         // 409: оценить недоставленный заказ
-        send(post("/orders/" + orderId + "/review"), CLIENT_USER_ID, "{\"rating\": 5}")
+        send(post("/api/v1/orders/" + orderId + "/review"), CLIENT_USER_ID, "{\"rating\": 5}")
                 .andExpect(status().isConflict());
     }
 
     private int createZone(String name) throws Exception {
-        MvcResult result = send(post("/zones"), null, "{\"name\": \"" + name + "\"}")
+        MvcResult result = send(post("/api/v1/zones"), null, "{\"name\": \"" + name + "\"}")
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(body(result), "$.id");
     }
 
     private void createClient(int userId) throws Exception {
-        send(post("/clients"), null,
+        send(post("/api/v1/clients"), null,
                 "{\"userId\": " + userId + ", \"fullName\": \"Клиент " + userId + "\", \"phone\": \"79001112233\"}")
                 .andExpect(status().isCreated());
     }
 
     private int createCourier(int userId, int zoneId) throws Exception {
-        MvcResult result = send(post("/couriers"), null,
+        MvcResult result = send(post("/api/v1/couriers"), null,
                 "{\"userId\": " + userId + ", \"fullName\": \"Курьер " + userId + "\", \"zoneIds\": [" + zoneId + "]}")
                 .andExpect(status().isCreated())
                 .andReturn();
@@ -250,7 +250,7 @@ class OrderApiIntegrationTest {
     }
 
     private int createOrder(int zoneId) throws Exception {
-        MvcResult result = send(post("/orders"), CLIENT_USER_ID, orderJson(zoneId, "1.50"))
+        MvcResult result = send(post("/api/v1/orders"), CLIENT_USER_ID, orderJson(zoneId, "1.50"))
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(body(result), "$.id");

@@ -7,6 +7,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import by.delivery.main_service.dto.OrderResponse;
 import by.delivery.main_service.event.OrderStatusChangedEvent;
 import by.delivery.main_service.repository.CourierRepository;
 import by.delivery.main_service.repository.OrderRepository;
@@ -28,7 +29,7 @@ public class CourierService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public void changeStatusByCourier(Integer orderId, OrderStatus newStatus, Integer courierUserId) {
+    public OrderResponse changeStatusByCourier(Integer orderId, OrderStatus newStatus, Integer courierUserId) {
         validateTargetStatus(newStatus);
 
         Order order = loadOrderForUpdate(orderId);
@@ -40,43 +41,41 @@ public class CourierService {
         }
 
         applyStatusChange(order, newStatus);
+        return OrderResponse.from(order);
     }
 
     @Transactional
-    public void changeStatusByAdmin(Integer orderId, OrderStatus newStatus) {
+    public OrderResponse changeStatusByAdmin(Integer orderId, OrderStatus newStatus) {
         validateTargetStatus(newStatus);
 
         Order order = loadOrderForUpdate(orderId);
 
         ensureCourierAssigned(order);
         applyStatusChange(order, newStatus);
+        return OrderResponse.from(order);
     }
 
     private void applyStatusChange(Order order, OrderStatus newStatus) {
-        LocalDateTime now = LocalDateTime.now();
-
         switch (newStatus) {
-            case PICKED_UP -> markPickedUp(order, now);
-            case DELIVERED -> markDelivered(order, now);
+            case PICKED_UP -> ensureCanPickUp(order);
+            case DELIVERED -> markDelivered(order);
             default -> throw new IllegalArgumentException("Неподдерживаемый статус: " + newStatus);
         }
 
-        order.setStatus(newStatus);
+        order.changeStatus(newStatus, LocalDateTime.now());
         eventPublisher.publishEvent(OrderStatusChangedEvent.from(order));
     }
 
-    private void markPickedUp(Order order, LocalDateTime now) {
+    private void ensureCanPickUp(Order order) {
         if (order.getStatus() != OrderStatus.COURIER_ASSIGNED) {
             throw new IllegalStateException("Перед статусом PICKED_UP заказ должен быть в статусе COURIER_ASSIGNED");
         }
-        order.setPickedUpAt(now);
     }
 
-    private void markDelivered(Order order, LocalDateTime now) {
-        if (order.getStatus() != OrderStatus.PICKED_UP || order.getPickedUpAt() == null) {
+    private void markDelivered(Order order) {
+        if (order.getStatus() != OrderStatus.PICKED_UP || order.findStatusTime(OrderStatus.PICKED_UP) == null) {
             throw new IllegalStateException("Перед статусом DELIVERED заказ должен быть в статусе PICKED_UP");
         }
-        order.setDeliveredAt(now);
         order.getCourier().setStatus(CourierStatus.AVAILABLE);
     }
 

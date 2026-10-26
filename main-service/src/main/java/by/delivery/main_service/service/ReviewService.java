@@ -3,10 +3,14 @@ package by.delivery.main_service.service;
 import java.util.Objects;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import by.delivery.main_service.dto.PageResponse;
+import by.delivery.main_service.dto.ReviewResponse;
 import by.delivery.main_service.event.NewReviewEvent;
+import by.delivery.main_service.repository.CourierRepository;
 import by.delivery.main_service.repository.OrderRepository;
 import by.delivery.main_service.repository.ReviewRepository;
 import by.delivery.main_service.repository.entity.Order;
@@ -26,10 +30,11 @@ public class ReviewService {
 
     private final OrderRepository orderRepository;
     private final ReviewRepository reviewRepository;
+    private final CourierRepository courierRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public void leaveReview(Integer orderId, Integer userId, Integer rating, String comment) {
+    public ReviewResponse leaveReview(Integer orderId, Integer userId, Integer rating, String comment) {
         validateInput(orderId, userId, rating);
 
         Order order = orderRepository.findWithLockById(orderId)
@@ -57,6 +62,7 @@ public class ReviewService {
         Review saved = reviewRepository.saveAndFlush(review);
 
         eventPublisher.publishEvent(NewReviewEvent.from(saved));
+        return ReviewResponse.from(saved);
     }
 
     private void validateInput(Integer orderId, Integer userId, Integer rating) {
@@ -66,5 +72,13 @@ public class ReviewService {
         if (rating == null || rating < MIN_RATING || rating > MAX_RATING) {
             throw new IllegalArgumentException("Оценка должна быть от " + MIN_RATING + " до " + MAX_RATING);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<ReviewResponse> getCourierReviews(Integer courierId, Pageable pageable) {
+        if (!courierRepository.existsById(courierId)) {
+            throw new EntityNotFoundException("Курьер не найден: " + courierId);
+        }
+        return PageResponse.of(reviewRepository.findByCourier_Id(courierId, pageable).map(ReviewResponse::from));
     }
 }

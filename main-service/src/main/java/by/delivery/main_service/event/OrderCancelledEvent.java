@@ -32,8 +32,8 @@ public record OrderCancelledEvent(
                 order.getStatus(),
                 order.getCancelledBy(),
                 order.getCreatedAt(),
-                order.getAssignedAt(),
-                order.getPickedUpAt(),
-                order.getCancelledAt());
+                order.findStatusTime(OrderStatus.COURIER_ASSIGNED),
+                order.findStatusTime(OrderStatus.PICKED_UP),
+                order.findStatusTime(OrderStatus.CANCELLED));
     }
 }

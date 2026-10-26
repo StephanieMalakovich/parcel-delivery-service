@@ -20,12 +20,14 @@ import by.delivery.main_service.event.OrderStatusChangedEvent;
 import by.delivery.main_service.repository.ClientRepository;
 import by.delivery.main_service.repository.CourierRepository;
 import by.delivery.main_service.repository.OrderRepository;
+import by.delivery.main_service.repository.OrderStatusHistoryRepository;
 import by.delivery.main_service.repository.ZoneRepository;
 import by.delivery.main_service.repository.entity.Client;
 import by.delivery.main_service.repository.entity.Courier;
 import by.delivery.main_service.repository.entity.CourierStatus;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
+import by.delivery.main_service.repository.entity.OrderStatusHistory;
 import by.delivery.main_service.repository.entity.Zone;
 import by.delivery.main_service.service.CourierService;
 
@@ -70,6 +72,9 @@ class CourierServiceIntegrationTest {
     @Autowired
     private ZoneRepository zoneRepository;
 
+    @Autowired
+    private OrderStatusHistoryRepository historyRepository;
+
     @Test
     void givenAssignedOrder_whenCourierPicksUp_thenStatusIsSaved(ApplicationEvents applicationEvents) {
 
@@ -92,11 +97,11 @@ class CourierServiceIntegrationTest {
         assertThat(saved.getStatus())
                 .isEqualTo(OrderStatus.PICKED_UP);
 
-        assertThat(saved.getPickedUpAt())
+        assertThat(statusTime(orderId, OrderStatus.PICKED_UP))
                 .isNotNull()
                 .isAfterOrEqualTo(startedAt);
 
-        assertThat(saved.getDeliveredAt()).isNull();
+        assertThat(statusTime(orderId, OrderStatus.DELIVERED)).isNull();
 
         List<OrderStatusChangedEvent> events = applicationEvents
                 .stream(OrderStatusChangedEvent.class)
@@ -115,10 +120,7 @@ class CourierServiceIntegrationTest {
         Order order = createOrder(OrderStatus.PICKED_UP);
 
         Integer orderId = order.getId();
-        LocalDateTime originalPickedUpAt = orderRepository
-                .findById(orderId)
-                .orElseThrow()
-                .getPickedUpAt();
+        LocalDateTime originalPickedUpAt = statusTime(orderId, OrderStatus.PICKED_UP);
 
         // When
         courierService.changeStatusByCourier(
@@ -133,10 +135,10 @@ class CourierServiceIntegrationTest {
         assertThat(saved.getStatus())
                 .isEqualTo(OrderStatus.DELIVERED);
 
-        assertThat(saved.getPickedUpAt())
+        assertThat(statusTime(orderId, OrderStatus.PICKED_UP))
                 .isEqualTo(originalPickedUpAt);
 
-        assertThat(saved.getDeliveredAt())
+        assertThat(statusTime(orderId, OrderStatus.DELIVERED))
                 .isNotNull()
                 .isAfter(originalPickedUpAt);
 
@@ -152,7 +154,7 @@ class CourierServiceIntegrationTest {
                 .isEqualTo(originalPickedUpAt);
 
         assertThat(events.get(0).deliveredAt())
-                .isEqualTo(saved.getDeliveredAt());
+                .isEqualTo(statusTime(orderId, OrderStatus.DELIVERED));
 
         assertThat(courierRepository.findById(order.getCourier().getId()).orElseThrow().getStatus())
                 .isEqualTo(CourierStatus.AVAILABLE);
@@ -180,8 +182,8 @@ class CourierServiceIntegrationTest {
         assertThat(saved.getStatus())
                 .isEqualTo(OrderStatus.COURIER_ASSIGNED);
 
-        assertThat(saved.getPickedUpAt()).isNull();
-        assertThat(saved.getDeliveredAt()).isNull();
+        assertThat(statusTime(orderId, OrderStatus.PICKED_UP)).isNull();
+        assertThat(statusTime(orderId, OrderStatus.DELIVERED)).isNull();
 
         assertThat(
                 applicationEvents
@@ -210,8 +212,8 @@ class CourierServiceIntegrationTest {
         assertThat(saved.getStatus())
                 .isEqualTo(OrderStatus.COURIER_ASSIGNED);
 
-        assertThat(saved.getPickedUpAt()).isNull();
-        assertThat(saved.getDeliveredAt()).isNull();
+        assertThat(statusTime(orderId, OrderStatus.PICKED_UP)).isNull();
+        assertThat(statusTime(orderId, OrderStatus.DELIVERED)).isNull();
 
         assertThat(
                 applicationEvents
@@ -240,7 +242,7 @@ class CourierServiceIntegrationTest {
         assertThat(saved.getStatus())
                 .isEqualTo(OrderStatus.PICKED_UP);
 
-        assertThat(saved.getPickedUpAt()).isNotNull();
+        assertThat(statusTime(orderId, OrderStatus.PICKED_UP)).isNotNull();
 
         assertThat(
                 applicationEvents
@@ -292,16 +294,13 @@ class CourierServiceIntegrationTest {
         order.setDeliveryAddress("Delivery address");
         order.setStatus(initialStatus);
 
-        order.setAssignedAt(
-                LocalDateTime.now()
-                        .minusMinutes(10)
-                        .truncatedTo(ChronoUnit.MICROS));
+        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
+
+        order.addStatusHistory(OrderStatus.SEARCHING_COURIER, now.minusMinutes(15));
+        order.addStatusHistory(OrderStatus.COURIER_ASSIGNED, now.minusMinutes(10));
 
         if (initialStatus == OrderStatus.PICKED_UP) {
-            order.setPickedUpAt(
-                    LocalDateTime.now()
-                            .minusMinutes(5)
-                            .truncatedTo(ChronoUnit.MICROS));
+            order.addStatusHistory(OrderStatus.PICKED_UP, now.minusMinutes(5));
         }
 
         return orderRepository.saveAndFlush(order);
@@ -314,5 +313,12 @@ class CourierServiceIntegrationTest {
         courier.setStatus(CourierStatus.BUSY);   // курьер с назначенным заказом занят
 
         return courierRepository.saveAndFlush(courier);
+    }
+
+    private LocalDateTime statusTime(Integer orderId, OrderStatus status) {
+        return historyRepository
+                .findFirstByOrder_IdAndStatusOrderByChangedAtDescIdDesc(orderId, status)
+                .map(OrderStatusHistory::getChangedAt)
+                .orElse(null);
     }
 }

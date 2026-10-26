@@ -1,6 +1,7 @@
 package by.delivery.main_service.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import by.delivery.main_service.repository.entity.CancelledBy;
 import by.delivery.main_service.repository.entity.Order;
@@ -17,10 +18,7 @@ public record OrderResponse(
         ParcelResponse parcel,
         CancelledBy cancelledBy,
         LocalDateTime createdAt,
-        LocalDateTime assignedAt,
-        LocalDateTime pickedUpAt,
-        LocalDateTime deliveredAt,
-        LocalDateTime cancelledAt) {
+        List<OrderStatusHistoryResponse> statusHistory) {
 
     public static OrderResponse from(Order o) {
         return new OrderResponse(
@@ -34,9 +32,14 @@ public record OrderResponse(
                 ParcelResponse.from(o.getParcel()),
                 o.getCancelledBy(),
                 o.getCreatedAt(),
-                o.getAssignedAt(),
-                o.getPickedUpAt(),
-                o.getDeliveredAt(),
-                o.getCancelledAt());
+                o.getStatusHistory().stream().map(OrderStatusHistoryResponse::from).toList());
+    }
+
+    public LocalDateTime statusTime(OrderStatus searchedStatus) {
+        return statusHistory.stream()
+                .filter(entry -> entry.status() == searchedStatus)
+                .map(OrderStatusHistoryResponse::changedAt)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
     }
 }

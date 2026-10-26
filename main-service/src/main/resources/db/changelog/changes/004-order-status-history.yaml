@@ -1,0 +1,90 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 004-create-order-status-history
+      author: delivery
+      changes:
+        - createTable:
+            tableName: order_status_history
+            columns:
+              - column: { name: id, type: integer, autoIncrement: true, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: order_id, type: integer, constraints: { nullable: false } }
+              - column: { name: status, type: varchar(30), constraints: { nullable: false } }
+              - column: { name: changed_at, type: timestamp, constraints: { nullable: false } }
+        - addForeignKeyConstraint:
+            baseTableName: order_status_history
+            baseColumnNames: order_id
+            referencedTableName: orders
+            referencedColumnNames: id
+            constraintName: fk_order_status_history_order
+            onDelete: CASCADE
+        - createIndex:
+            tableName: order_status_history
+            indexName: idx_order_status_history_order_status
+            columns:
+              - column: { name: order_id }
+              - column: { name: status }
+        - sql:
+            sql: |
+              ALTER TABLE order_status_history
+                  ADD CONSTRAINT ck_order_status_history_status
+                  CHECK (status IN ('SEARCHING_COURIER', 'COURIER_ASSIGNED', 'PICKED_UP', 'DELIVERED', 'CANCELLED'));
+      rollback:
+        - dropTable:
+            tableName: order_status_history
+
+  - changeSet:
+      id: 004-move-order-times-to-history
+      author: delivery
+      changes:
+        # Перенос уже существующих данных: создание заказа и каждый заполненный этап
+        - sql:
+            sql: |
+              INSERT INTO order_status_history (order_id, status, changed_at)
+              SELECT id, 'SEARCHING_COURIER', created_at FROM orders;
+
+              INSERT INTO order_status_history (order_id, status, changed_at)
+              SELECT id, 'COURIER_ASSIGNED', assigned_at FROM orders WHERE assigned_at IS NOT NULL;
+
+              INSERT INTO order_status_history (order_id, status, changed_at)
+              SELECT id, 'PICKED_UP', picked_up_at FROM orders WHERE picked_up_at IS NOT NULL;
+
+              INSERT INTO order_status_history (order_id, status, changed_at)
+              SELECT id, 'DELIVERED', delivered_at FROM orders WHERE delivered_at IS NOT NULL;
+
+              INSERT INTO order_status_history (order_id, status, changed_at)
+              SELECT id, 'CANCELLED', cancelled_at FROM orders WHERE cancelled_at IS NOT NULL;
+        - dropColumn:
+            tableName: orders
+            columnName: assigned_at
+        - dropColumn:
+            tableName: orders
+            columnName: picked_up_at
+        - dropColumn:
+            tableName: orders
+            columnName: delivered_at
+        - dropColumn:
+            tableName: orders
+            columnName: cancelled_at
+      rollback:
+        - addColumn:
+            tableName: orders
+            columns:
+              - column: { name: assigned_at, type: timestamp }
+              - column: { name: picked_up_at, type: timestamp }
+              - column: { name: delivered_at, type: timestamp }
+              - column: { name: cancelled_at, type: timestamp }
+        - sql:
+            sql: |
+              UPDATE orders o SET assigned_at = (
+                  SELECT max(h.changed_at) FROM order_status_history h
+                  WHERE h.order_id = o.id AND h.status = 'COURIER_ASSIGNED');
+              UPDATE orders o SET picked_up_at = (
+                  SELECT max(h.changed_at) FROM order_status_history h
+                  WHERE h.order_id = o.id AND h.status = 'PICKED_UP');
+              UPDATE orders o SET delivered_at = (
+                  SELECT max(h.changed_at) FROM order_status_history h
+                  WHERE h.order_id = o.id AND h.status = 'DELIVERED');
+              UPDATE orders o SET cancelled_at = (
+                  SELECT max(h.changed_at) FROM order_status_history h
+                  WHERE h.order_id = o.id AND h.status = 'CANCELLED');

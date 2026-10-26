@@ -1,6 +1,8 @@
 package by.delivery.main_service.repository.entity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -15,7 +17,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import lombok.Getter;
@@ -72,18 +76,6 @@ public class Order {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "assigned_at")
-    private LocalDateTime assignedAt;
-
-    @Column(name = "picked_up_at")
-    private LocalDateTime pickedUpAt;
-
-    @Column(name = "delivered_at")
-    private LocalDateTime deliveredAt;
-
-    @Column(name = "cancelled_at")
-    private LocalDateTime cancelledAt;
-
     @ToString.Exclude
     @OneToOne(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private Parcel parcel;
@@ -91,4 +83,32 @@ public class Order {
     @ToString.Exclude
     @OneToOne(mappedBy = "order", fetch = FetchType.LAZY)
     private Review review;
+
+    @ToString.Exclude
+    @OneToMany(mappedBy = "order", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("changedAt ASC, id ASC")
+    private List<OrderStatusHistory> statusHistory = new ArrayList<>();
+
+    // Меняет статус заказа и фиксирует момент перехода в истории статусов
+    public void changeStatus(OrderStatus newStatus, LocalDateTime changedAt) {
+        this.status = newStatus;
+        addStatusHistory(newStatus, changedAt);
+    }
+
+    // Добавляет запись в историю, не меняя текущий статус
+    public void addStatusHistory(OrderStatus historyStatus, LocalDateTime changedAt) {
+        statusHistory.add(new OrderStatusHistory(this, historyStatus, changedAt));
+    }
+
+    // Время последнего перехода в указанный статус или null, если заказ в нём не был
+    public LocalDateTime findStatusTime(OrderStatus searchedStatus) {
+        LocalDateTime result = null;
+        for (OrderStatusHistory entry : statusHistory) {
+            if (entry.getStatus() == searchedStatus
+                    && (result == null || !entry.getChangedAt().isBefore(result))) {
+                result = entry.getChangedAt();
+            }
+        }
+        return result;
+    }
 }

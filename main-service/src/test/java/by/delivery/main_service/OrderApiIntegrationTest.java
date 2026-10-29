@@ -2,6 +2,7 @@ package by.delivery.main_service;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -20,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -30,8 +32,6 @@ import com.jayway.jsonpath.JsonPath;
 @Import(TestcontainersConfiguration.class)
 @RecordApplicationEvents
 class OrderApiIntegrationTest {
-
-    private static final String USER_ID_HEADER = "X-User-Id";
 
     private static final int CLIENT_USER_ID = 1001;
     private static final int COURIER_USER_ID = 2001;
@@ -62,7 +62,7 @@ class OrderApiIntegrationTest {
 
     @BeforeEach
     void setUpMockMvc() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+        mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
     @Test
@@ -204,9 +204,9 @@ class OrderApiIntegrationTest {
                 "{\"zoneId\": " + zoneId + ", \"pickupAddress\": \"A\", \"deliveryAddress\": \"B\","
                         + " \"parcel\": {\"weightKg\": 1, \"size\": \"HUGE\"}}")
                 .andExpect(status().isBadRequest());
-        // 400: нет заголовка с идентификатором пользователя
+        // 401: запрос без токена
         mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content(orderJson(zoneId, "1")))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized());
         // 400: оценка вне диапазона
         send(post("/api/v1/orders/" + orderId + "/review"), CLIENT_USER_ID, "{\"rating\": 6}")
                 .andExpect(status().isBadRequest());
@@ -272,13 +272,18 @@ class OrderApiIntegrationTest {
             Integer userId,
             String json) throws Exception {
         request.characterEncoding(StandardCharsets.UTF_8);
-        if (userId != null) {
-            request.header(USER_ID_HEADER, userId);
-        }
         if (json != null) {
             request.contentType(MediaType.APPLICATION_JSON).content(json);
         }
-        return mockMvc.perform(request);
+        return mockMvc.perform(request.with(tokenFor(userId)));
+    }
+
+    // В тестах пользователи с id от 2000 — курьеры, остальные — заказчики, null — администратор
+    private static RequestPostProcessor tokenFor(Integer userId) {
+        if (userId == null) {
+            return TestJwt.admin();
+        }
+        return userId >= 2000 ? TestJwt.courier(userId) : TestJwt.customer(userId);
     }
 
     private String body(MvcResult result) throws Exception {

@@ -3,6 +3,7 @@ package by.delivery.main_service;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,7 +57,7 @@ class DirectoryApiIntegrationTest {
                     zones
                 RESTART IDENTITY CASCADE
                 """);
-        mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
+        mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
     }
 
     @Test
@@ -95,7 +96,7 @@ class DirectoryApiIntegrationTest {
         int id = JsonPath.read(body(created), "$.id");
 
         send(get("/api/v1/clients/" + id), null).andExpect(jsonPath("$.fullName", is("Анна")));
-        send(get("/api/v1/clients/me").header("X-User-Id", 1), null).andExpect(jsonPath("$.id", is(id)));
+        mockMvc.perform(get("/api/v1/clients/me").with(TestJwt.customer(1))).andExpect(jsonPath("$.id", is(id)));
         send(put("/api/v1/clients/" + id), "{\"fullName\": \"Анна Новая\", \"phone\": \"79000000000\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fullName", is("Анна Новая")));
@@ -152,7 +153,8 @@ class DirectoryApiIntegrationTest {
         if (json != null) {
             request.contentType(MediaType.APPLICATION_JSON).content(json);
         }
-        return mockMvc.perform(request);
+        // справочниками управляет администратор
+        return mockMvc.perform(request.with(TestJwt.admin()));
     }
 
     private String body(MvcResult result) throws Exception {

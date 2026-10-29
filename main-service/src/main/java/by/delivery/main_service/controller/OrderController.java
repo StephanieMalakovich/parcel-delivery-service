@@ -4,12 +4,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -23,6 +23,7 @@ import by.delivery.main_service.dto.PageResponse;
 import by.delivery.main_service.dto.ReviewResponse;
 import by.delivery.main_service.dto.UpdateOrderStatusRequest;
 import by.delivery.main_service.repository.entity.OrderStatus;
+import by.delivery.main_service.security.CurrentUser;
 import by.delivery.main_service.service.CourierService;
 import by.delivery.main_service.service.OrderService;
 import by.delivery.main_service.service.ReviewService;
@@ -35,20 +36,20 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OrderController {
 
-    private static final String USER_ID_HEADER = "X-User-Id";
-
+    private final CurrentUser currentUser;
     private final OrderService orderService;
     private final CourierService courierService;
     private final ReviewService reviewService;
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public OrderResponse create(
-            @RequestHeader(USER_ID_HEADER) Integer userId,
             @Valid @RequestBody CreateOrderRequest request) {
-        return orderService.createOrder(userId, request);
+        return orderService.createOrder(currentUser.id(), request);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public PageResponse<OrderResponse> getAll(
             @RequestParam(required = false) OrderStatus status,
@@ -56,64 +57,66 @@ public class OrderController {
         return orderService.getAllOrders(status, pageable);
     }
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     @GetMapping("/my")
     public PageResponse<OrderResponse> getMyOrders(
-            @RequestHeader(USER_ID_HEADER) Integer userId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return orderService.getClientOrders(userId, pageable);
+        return orderService.getClientOrders(currentUser.id(), pageable);
     }
 
+    @PreAuthorize("hasRole('COURIER')")
     @GetMapping("/assigned")
     public PageResponse<OrderResponse> getAssigned(
-            @RequestHeader(USER_ID_HEADER) Integer userId,
             @RequestParam(required = false) OrderStatus status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return orderService.getCourierOrders(userId, status, pageable);
+        return orderService.getCourierOrders(currentUser.id(), status, pageable);
     }
 
+    @PreAuthorize("hasRole('COURIER')")
     @GetMapping("/available")
     public PageResponse<OrderResponse> getAvailable(
-            @RequestHeader(USER_ID_HEADER) Integer userId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return orderService.getAvailableOrders(userId, pageable);
+        return orderService.getAvailableOrders(currentUser.id(), pageable);
     }
 
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'COURIER', 'ADMIN')")
     @GetMapping("/{id}")
     public OrderResponse getById(@PathVariable Integer id) {
-        return orderService.getOrder(id);
+        return orderService.getOrderForUser(id, currentUser.id(), currentUser.isAdmin());
     }
 
+    @PreAuthorize("hasRole('COURIER')")
     @PostMapping("/{id}/accept")
     public OrderResponse accept(
-            @RequestHeader(USER_ID_HEADER) Integer userId,
             @PathVariable Integer id) {
-        return orderService.acceptOrder(userId, id);
+        return orderService.acceptOrder(currentUser.id(), id);
     }
 
+    @PreAuthorize("hasRole('COURIER')")
     @PatchMapping("/{id}/status")
     public OrderResponse updateStatus(
-            @RequestHeader(USER_ID_HEADER) Integer userId,
             @PathVariable Integer id,
             @Valid @RequestBody UpdateOrderStatusRequest request) {
-        return courierService.changeStatusByCourier(id, request.status(), userId);
+        return courierService.changeStatusByCourier(id, request.status(), currentUser.id());
     }
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping("/{id}/cancel")
     public OrderResponse cancel(
-            @RequestHeader(USER_ID_HEADER) Integer userId,
             @PathVariable Integer id) {
-        return orderService.cancelOrderByClient(userId, id);
+        return orderService.cancelOrderByClient(currentUser.id(), id);
     }
 
+    @PreAuthorize("hasRole('CUSTOMER')")
     @PostMapping("/{id}/review")
     @ResponseStatus(HttpStatus.CREATED)
     public ReviewResponse review(
-            @RequestHeader(USER_ID_HEADER) Integer userId,
             @PathVariable Integer id,
             @Valid @RequestBody CreateReviewRequest request) {
-        return reviewService.leaveReview(id, userId, request.rating(), request.comment());
+        return reviewService.leaveReview(id, currentUser.id(), request.rating(), request.comment());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}")
     public OrderResponse adminAction(
             @PathVariable Integer id,

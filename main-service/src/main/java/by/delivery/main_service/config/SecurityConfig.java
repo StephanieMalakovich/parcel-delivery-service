@@ -4,6 +4,8 @@ import java.util.stream.Stream;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
@@ -18,16 +20,18 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
-        // http.oauth2Login(Customizer.withDefaults());
+        http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        http.csrf(csrf -> csrf.disable());
 
-        return http.authorizeHttpRequests(c -> c.requestMatchers("/error").permitAll()
-                .requestMatchers("/api/v1/clients").hasAnyRole("CUSTOMER", "ADMIN")
-                .anyRequest().authenticated())
+        return http.authorizeHttpRequests(c -> c
+                        .requestMatchers("/error").permitAll()
+                        .anyRequest().authenticated())
                 .build();
     }
 
@@ -39,12 +43,14 @@ public class SecurityConfig {
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             var authorities = jwtGrantedAuthoritiesConverter.convert(jwt);
             var roles = jwt.getClaimAsStringList("parcel_roles");
-            return Stream.concat(authorities.stream(),
-                    roles.stream()
-                            .filter(role -> role.startsWith("ROLE_"))
-                            .map(SimpleGrantedAuthority::new)
-                            .map(GrantedAuthority.class::cast))
-                    .toList();
+            // токен без claim parcel_roles не должен приводить к NullPointerException
+            Stream<GrantedAuthority> roleAuthorities = roles == null
+                    ? Stream.empty()
+                    : roles.stream()
+                    .filter(role -> role.startsWith("ROLE_"))
+                    .map(SimpleGrantedAuthority::new)
+                    .map(GrantedAuthority.class::cast);
+            return Stream.concat(authorities.stream(), roleAuthorities).toList();
         });
 
         return converter;
@@ -58,9 +64,9 @@ public class SecurityConfig {
             var oidcUser = oidcUserService.loadUser(userRequest);
             var roles = oidcUser.getClaimAsStringList("parcel_roles");
             var authorities = Stream.concat(oidcUser.getAuthorities().stream(), roles.stream()
-                    .filter(role -> role.startsWith("ROLE_"))
-                    .map(SimpleGrantedAuthority::new)
-                    .map(GrantedAuthority.class::cast))
+                            .filter(role -> role.startsWith("ROLE_"))
+                            .map(SimpleGrantedAuthority::new)
+                            .map(GrantedAuthority.class::cast))
                     .toList();
             return new DefaultOidcUser(authorities, oidcUser.getIdToken(), oidcUser.getUserInfo());
 

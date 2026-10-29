@@ -35,6 +35,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleIntegrity(DataIntegrityViolationException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
-                "Операция нарушает ограничения базы данных (например, объект используется в других записях)");
+                "Операция нарушает ограничения базы данных");
     }
 }

@@ -3,6 +3,7 @@ package by.delivery.main_service.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,27 +28,32 @@ public class ZoneController {
 
     private final ZoneService zoneService;
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     public List<ZoneResponse> getAll() {
         return zoneService.getAll();
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{id}")
     public ZoneResponse getById(@PathVariable Integer id) {
         return zoneService.get(id);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ZoneResponse create(@Valid @RequestBody ZoneRequest request) {
         return zoneService.create(request);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ZoneResponse update(@PathVariable Integer id, @Valid @RequestBody ZoneRequest request) {
         return zoneService.update(id, request);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Integer id) {

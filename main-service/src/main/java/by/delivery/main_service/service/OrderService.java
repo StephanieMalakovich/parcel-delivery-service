@@ -183,6 +183,20 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
+    public OrderResponse getOrderForUser(Integer orderId, Integer userId, boolean admin) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Заказ не найден: " + orderId));
+
+        boolean isClientOfOrder = Objects.equals(order.getClient().getUserId(), userId);
+        boolean isCourierOfOrder = order.getCourier() != null
+                && Objects.equals(order.getCourier().getUserId(), userId);
+        if (!admin && !isClientOfOrder && !isCourierOfOrder) {
+            throw new SecurityException("Нет доступа к этому заказу");
+        }
+        return OrderResponse.from(order);
+    }
+
+    @Transactional(readOnly = true)
     public PageResponse<OrderResponse> getClientOrders(Integer userId, Pageable pageable) {
         Client client = clientRepository.findByUserId(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Профиль клиента не найден: " + userId));

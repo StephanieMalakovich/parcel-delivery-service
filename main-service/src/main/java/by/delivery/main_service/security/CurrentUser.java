@@ -6,14 +6,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
-// Достаёт данные текущего пользователя из JWT, который уже проверил Spring Security.
-// Идентификатор берётся только из токена, поэтому подделать его запросом нельзя.
 @Component
 public class CurrentUser {
 
     private static final String ADMIN_AUTHORITY = "ROLE_ADMIN";
 
-    // sub — уникальный id пользователя в Keycloak (UUID), он же userId в таблицах clients, couriers, notifications
     public String id() {
         String subject = jwt().getSubject();
         if (subject == null || subject.isBlank()) {

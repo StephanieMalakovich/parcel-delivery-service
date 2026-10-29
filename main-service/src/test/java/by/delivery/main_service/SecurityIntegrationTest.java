@@ -31,7 +31,6 @@ import com.jayway.jsonpath.JsonPath;
 @RecordApplicationEvents
 class SecurityIntegrationTest {
 
-    // Корректное тело заказа: @Valid проверяется до @PreAuthorize, и с невалидным телом пришёл бы 400, а не 403
     private static final String VALID_ORDER = """
             {"zoneId": 1, "pickupAddress": "A", "deliveryAddress": "B",
              "parcel": {"weightKg": 1, "size": "SMALL"}}
@@ -180,7 +179,6 @@ class SecurityIntegrationTest {
 
     @Test
     void givenCustomerWithoutProfile_whenReadsOwnOrders_thenNotFound() throws Exception {
-        // токен валидный и роль подходит, но профиль клиента в БД ещё не создан
         mockMvc.perform(get("/api/v1/orders/my").with(TestJwt.customer("unknown-sub")))
                 .andExpect(status().isNotFound());
     }

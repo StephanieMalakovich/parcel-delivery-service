@@ -5,8 +5,6 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-// JWT для тестов: подставляется вместо реального токена Keycloak.
-// Роль лежит в authorities, id пользователя — в sub, как в настоящем токене Keycloak.
 final class TestJwt {
 
     static final String ADMIN_USER_ID = "admin-1";

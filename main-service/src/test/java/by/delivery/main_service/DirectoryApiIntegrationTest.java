@@ -153,7 +153,6 @@ class DirectoryApiIntegrationTest {
         if (json != null) {
             request.contentType(MediaType.APPLICATION_JSON).content(json);
         }
-        // справочниками управляет администратор
         return mockMvc.perform(request.with(TestJwt.admin()));
     }
 

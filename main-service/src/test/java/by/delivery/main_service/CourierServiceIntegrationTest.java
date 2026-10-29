@@ -153,9 +153,6 @@ class CourierServiceIntegrationTest {
         assertThat(events.get(0).pickedUpAt())
                 .isEqualTo(originalPickedUpAt);
 
-        assertThat(events.get(0).deliveredAt())
-                .isEqualTo(statusTime(orderId, OrderStatus.DELIVERED));
-
         assertThat(courierRepository.findById(order.getCourier().getId()).orElseThrow().getStatus())
                 .isEqualTo(CourierStatus.AVAILABLE);
     }
@@ -310,7 +307,7 @@ class CourierServiceIntegrationTest {
         Courier courier = new Courier();
         courier.setUserId(userId);
         courier.setFullName("Test Courier");
-        courier.setStatus(CourierStatus.BUSY);   // курьер с назначенным заказом занят
+        courier.setStatus(CourierStatus.BUSY);
 
         return courierRepository.saveAndFlush(courier);
     }

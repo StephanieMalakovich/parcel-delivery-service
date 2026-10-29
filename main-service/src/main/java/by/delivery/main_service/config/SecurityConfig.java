@@ -27,12 +27,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
-        // Сессий и cookie нет: каждый запрос несёт Bearer-токен, поэтому CSRF не нужен
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.csrf(csrf -> csrf.disable());
 
-        // Здесь только грубое правило «без токена нельзя».
-        // Какая роль что может, написано рядом с методами контроллеров (@PreAuthorize).
         return http.authorizeHttpRequests(c -> c
                 .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated())
@@ -47,7 +44,6 @@ public class SecurityConfig {
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             var authorities = jwtGrantedAuthoritiesConverter.convert(jwt);
             var roles = jwt.getClaimAsStringList("parcel_roles");
-            // токен без claim parcel_roles не должен приводить к NullPointerException
             Stream<GrantedAuthority> roleAuthorities = roles == null
                     ? Stream.empty()
                     : roles.stream()

@@ -14,34 +14,28 @@ import by.delivery.main_service.repository.entity.OrderStatus;
 import jakarta.persistence.LockModeType;
 
 public interface OrderRepository extends JpaRepository<Order, Integer> {
-    // Заказы конкретного клиента
     Page<Order> findByClient_Id(
             Integer clientId,
             Pageable pageable);
 
-    // Заказы, назначенные курьеру, с определённым статусом
     Page<Order> findByCourier_IdAndStatus(
             Integer courierId,
             OrderStatus status,
             Pageable pageable);
 
-    // Заказы определённой зоны, которые ещё не назначены курьеру
     List<Order> findByZone_IdAndStatusAndCourierIsNull(
             Integer zoneId,
             OrderStatus status);
 
-    // Все заказы курьера
     Page<Order> findByCourier_Id(
             Integer courierId,
             Pageable pageable);
 
-    // Заказы с определённым статусом в одной из перечисленных зон (доступные заявки курьера)
     Page<Order> findByStatusAndZone_IdIn(
             OrderStatus status,
             Collection<Integer> zoneIds,
             Pageable pageable);
 
-    // Заказы с определённым статусом
     Page<Order> findByStatus(
             OrderStatus status,
             Pageable pageable);

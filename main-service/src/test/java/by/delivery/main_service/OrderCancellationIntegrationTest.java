@@ -190,7 +190,6 @@ class OrderCancellationIntegrationTest {
                 orderService.cancelOrderByClient("9999", orderId)
         ).isInstanceOf(SecurityException.class);
 
-        // Данные остались прежними.
         Order saved = orderRepository.findById(orderId)
                 .orElseThrow();
 
@@ -225,7 +224,6 @@ class OrderCancellationIntegrationTest {
                 orderService.cancelOrderByClient("1001", orderId)
         ).isInstanceOf(IllegalStateException.class);
 
-        // Исходное состояние не изменено.
         Order saved = orderRepository.findById(orderId)
                 .orElseThrow();
 

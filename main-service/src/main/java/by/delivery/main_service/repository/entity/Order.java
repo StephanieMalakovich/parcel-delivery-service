@@ -89,18 +89,15 @@ public class Order {
     @OrderBy("changedAt ASC, id ASC")
     private List<OrderStatusHistory> statusHistory = new ArrayList<>();
 
-    // Меняет статус заказа и фиксирует момент перехода в истории статусов
     public void changeStatus(OrderStatus newStatus, LocalDateTime changedAt) {
         this.status = newStatus;
         addStatusHistory(newStatus, changedAt);
     }
 
-    // Добавляет запись в историю, не меняя текущий статус
     public void addStatusHistory(OrderStatus historyStatus, LocalDateTime changedAt) {
         statusHistory.add(new OrderStatusHistory(this, historyStatus, changedAt));
     }
 
-    // Время последнего перехода в указанный статус или null, если заказ в нём не был
     public LocalDateTime findStatusTime(OrderStatus searchedStatus) {
         LocalDateTime result = null;
         for (OrderStatusHistory entry : statusHistory) {

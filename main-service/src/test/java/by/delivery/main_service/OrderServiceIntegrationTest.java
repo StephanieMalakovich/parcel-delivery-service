@@ -100,7 +100,6 @@ class OrderServiceIntegrationTest {
     @Autowired
     private TransactionTemplate tx;
 
-    // ===================== создание заказа (4.3.2) =====================
 
     @Test
     void givenZoneWithCouriers_whenCreateOrder_thenOrderSavedAndZoneCouriersNotified(
@@ -169,7 +168,6 @@ class OrderServiceIntegrationTest {
         assertThat(applicationEvents.stream(NewOrderEvent.class)).isEmpty();
     }
 
-    // ===================== принятие заявки курьером (4.3.3) =====================
 
     @Test
     void givenSearchingOrder_whenCourierAccepts_thenCourierAssignedAndBusy(ApplicationEvents applicationEvents) {
@@ -278,8 +276,6 @@ class OrderServiceIntegrationTest {
                 .isEqualTo(OrderStatus.SEARCHING_COURIER);
     }
 
-    // ===================== управление администратором (4.3.8)
-    // =====================
 
     @Test
     void givenAssignedOrder_whenAdminReassigns_thenCouriersSwappedAndNotified(ApplicationEvents applicationEvents) {

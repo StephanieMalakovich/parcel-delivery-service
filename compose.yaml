@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${PRIMARY_DB_PASSWORD:-dev_password}
 
     ports:
-      - "127.0.0.1:5432:5432"
+      - "5432:5432"
 
     volumes:
       - primary_db_data:/var/lib/postgresql
@@ -22,5 +22,91 @@ services:
       timeout: 3s
       retries: 10
 
+  app:
+    build:
+      context: ./main-service 
+      dockerfile: Dockerfile
+    container_name: parcel-app
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://primary-db:5432/primarydb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${PRIMARY_DB_PASSWORD:-dev_password}
+
+
+      KEYCLOAK_ISSUER_URI: http://localhost:9090/realms/parcel
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/parcel/protocol/openid-connect/certs
+
+      KEYCLOAK_CLIENT_ID: parcel-app
+      KEYCLOAK_CLIENT_SECRET: 28bRswklX0bXsY76ijpq7QL2ReNYdOonWvTvYagQDrEnBM1OI0L7UkjwqrxY4ojOi4g5DXrG5lSUHwnniA7anx
+    depends_on:
+      primary-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+
+
+    networks:
+      - default
+      - keycloak_net
+
+  keycloak_db:
+    image: postgres:18
+    container_name: keycloak_postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PRIMARY_DB_PASSWORD:-dev_password}
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    networks:
+      - keycloak_net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    container_name: keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: keycloak_db
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: ${PRIMARY_DB_PASSWORD:-dev_password}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:9090
+
+    ports:
+      - "9090:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    depends_on:
+      keycloak_db:
+        condition: service_healthy
+    networks:
+      - keycloak_net
+
 volumes:
   primary_db_data:
+  keycloak_db_data:
+
+networks:
+  default: {}
+  keycloak_net: {}

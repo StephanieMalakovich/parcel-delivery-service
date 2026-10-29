@@ -34,7 +34,7 @@ public class ReviewService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public ReviewResponse leaveReview(Integer orderId, Integer userId, Integer rating, String comment) {
+    public ReviewResponse leaveReview(Integer orderId, String userId, Integer rating, String comment) {
         validateInput(orderId, userId, rating);
 
         Order order = orderRepository.findWithLockById(orderId)
@@ -65,7 +65,7 @@ public class ReviewService {
         return ReviewResponse.from(saved);
     }
 
-    private void validateInput(Integer orderId, Integer userId, Integer rating) {
+    private void validateInput(Integer orderId, String userId, Integer rating) {
         if (orderId == null || userId == null) {
             throw new IllegalArgumentException("Идентификаторы заказа и пользователя обязательны");
         }

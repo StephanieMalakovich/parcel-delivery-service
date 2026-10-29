@@ -1,0 +1,18 @@
+databaseChangeLog:
+
+  # user_id теперь хранит идентификатор пользователя из Keycloak (claim sub, UUID), а не число
+  - changeSet:
+      id: 005-user-id-to-varchar
+      author: delivery
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE clients       ALTER COLUMN user_id TYPE varchar(36) USING user_id::varchar;
+              ALTER TABLE couriers      ALTER COLUMN user_id TYPE varchar(36) USING user_id::varchar;
+              ALTER TABLE notifications ALTER COLUMN user_id TYPE varchar(36) USING user_id::varchar;
+      rollback:
+        - sql:
+            sql: |
+              ALTER TABLE clients       ALTER COLUMN user_id TYPE integer USING user_id::integer;
+              ALTER TABLE couriers      ALTER COLUMN user_id TYPE integer USING user_id::integer;
+              ALTER TABLE notifications ALTER COLUMN user_id TYPE integer USING user_id::integer;

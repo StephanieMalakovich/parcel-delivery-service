@@ -26,12 +26,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+
+        // Сессий и cookie нет: каждый запрос несёт Bearer-токен, поэтому CSRF не нужен
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         http.csrf(csrf -> csrf.disable());
 
+        // Здесь только грубое правило «без токена нельзя».
+        // Какая роль что может, написано рядом с методами контроллеров (@PreAuthorize).
         return http.authorizeHttpRequests(c -> c
-                        .requestMatchers("/error").permitAll()
-                        .anyRequest().authenticated())
+                .requestMatchers("/error").permitAll()
+                .anyRequest().authenticated())
                 .build();
     }
 
@@ -47,9 +51,9 @@ public class SecurityConfig {
             Stream<GrantedAuthority> roleAuthorities = roles == null
                     ? Stream.empty()
                     : roles.stream()
-                    .filter(role -> role.startsWith("ROLE_"))
-                    .map(SimpleGrantedAuthority::new)
-                    .map(GrantedAuthority.class::cast);
+                            .filter(role -> role.startsWith("ROLE_"))
+                            .map(SimpleGrantedAuthority::new)
+                            .map(GrantedAuthority.class::cast);
             return Stream.concat(authorities.stream(), roleAuthorities).toList();
         });
 
@@ -64,9 +68,9 @@ public class SecurityConfig {
             var oidcUser = oidcUserService.loadUser(userRequest);
             var roles = oidcUser.getClaimAsStringList("parcel_roles");
             var authorities = Stream.concat(oidcUser.getAuthorities().stream(), roles.stream()
-                            .filter(role -> role.startsWith("ROLE_"))
-                            .map(SimpleGrantedAuthority::new)
-                            .map(GrantedAuthority.class::cast))
+                    .filter(role -> role.startsWith("ROLE_"))
+                    .map(SimpleGrantedAuthority::new)
+                    .map(GrantedAuthority.class::cast))
                     .toList();
             return new DefaultOidcUser(authorities, oidcUser.getIdToken(), oidcUser.getUserInfo());
 

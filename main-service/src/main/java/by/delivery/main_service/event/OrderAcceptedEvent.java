@@ -13,9 +13,9 @@ public record OrderAcceptedEvent(
         LocalDateTime occurredAt,
         Integer orderId,
         Integer zoneId,
-        Integer clientUserId,
+        String clientUserId,
         Integer courierId,
-        Integer courierUserId,
+        String courierUserId,
         String courierName,
         OrderStatus status,
         LocalDateTime assignedAt) {

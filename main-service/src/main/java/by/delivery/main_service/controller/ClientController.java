@@ -54,6 +54,7 @@ public class ClientController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ClientResponse create(@Valid @RequestBody CreateClientRequest request) {
+        // заказчик может создать профиль только для себя, администратор — для любого
         if (!currentUser.isAdmin() && !request.userId().equals(currentUser.id())) {
             throw new SecurityException("Нельзя создать профиль для другого пользователя");
         }

@@ -29,7 +29,7 @@ public class CourierService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public OrderResponse changeStatusByCourier(Integer orderId, OrderStatus newStatus, Integer courierUserId) {
+    public OrderResponse changeStatusByCourier(Integer orderId, OrderStatus newStatus, String courierUserId) {
         validateTargetStatus(newStatus);
 
         Order order = loadOrderForUpdate(orderId);
@@ -84,7 +84,7 @@ public class CourierService {
                 .orElseThrow(() -> new EntityNotFoundException("Заказ не найден: " + orderId));
     }
 
-    private Courier loadCourier(Integer courierUserId) {
+    private Courier loadCourier(String courierUserId) {
         return courierRepository.findByUserId(courierUserId)
                 .orElseThrow(() -> new EntityNotFoundException("Профиль курьера не найден: " + courierUserId));
     }

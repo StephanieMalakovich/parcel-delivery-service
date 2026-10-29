@@ -8,12 +8,12 @@ import by.delivery.main_service.repository.entity.UserNotification;
 
 public interface UserNotificationRepository extends JpaRepository<UserNotification, Integer> {
     Page<UserNotification> findByUserIdOrderByCreatedAtDesc(
-            Integer userId,
+            String userId,
             Pageable pageable);
 
     Page<UserNotification> findByUserIdAndIsReadFalseOrderByCreatedAtDesc(
-            Integer userId,
+            String userId,
             Pageable pageable);
 
-    long countByUserIdAndIsReadFalse(Integer userId);
+    long countByUserIdAndIsReadFalse(String userId);
 }

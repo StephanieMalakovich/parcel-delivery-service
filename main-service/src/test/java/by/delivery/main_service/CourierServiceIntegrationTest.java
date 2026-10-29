@@ -88,7 +88,7 @@ class CourierServiceIntegrationTest {
         courierService.changeStatusByCourier(
                 orderId,
                 OrderStatus.PICKED_UP,
-                2001);
+                "2001");
 
         // Then
         Order saved = orderRepository.findById(orderId)
@@ -126,7 +126,7 @@ class CourierServiceIntegrationTest {
         courierService.changeStatusByCourier(
                 orderId,
                 OrderStatus.DELIVERED,
-                2001);
+                "2001");
 
         // Then
         Order saved = orderRepository.findById(orderId)
@@ -168,13 +168,13 @@ class CourierServiceIntegrationTest {
 
         Integer orderId = order.getId();
 
-        createCourier(2002);
+        createCourier("2002");
 
         // When / Then
         assertThatThrownBy(() -> courierService.changeStatusByCourier(
                 orderId,
                 OrderStatus.PICKED_UP,
-                2002)).isInstanceOf(SecurityException.class);
+                "2002")).isInstanceOf(SecurityException.class);
 
         Order saved = orderRepository.findById(orderId)
                 .orElseThrow();
@@ -204,7 +204,7 @@ class CourierServiceIntegrationTest {
         assertThatThrownBy(() -> courierService.changeStatusByCourier(
                 orderId,
                 OrderStatus.DELIVERED,
-                2001)).isInstanceOf(IllegalStateException.class);
+                "2001")).isInstanceOf(IllegalStateException.class);
 
         Order saved = orderRepository.findById(orderId)
                 .orElseThrow();
@@ -261,7 +261,7 @@ class CourierServiceIntegrationTest {
         assertThatThrownBy(() -> courierService.changeStatusByCourier(
                 missingOrderId,
                 OrderStatus.PICKED_UP,
-                2001)).isInstanceOf(EntityNotFoundException.class);
+                "2001")).isInstanceOf(EntityNotFoundException.class);
 
         assertThat(
                 applicationEvents
@@ -273,12 +273,12 @@ class CourierServiceIntegrationTest {
     private Order createOrder(OrderStatus initialStatus) {
 
         Client client = new Client();
-        client.setUserId(1001);
+        client.setUserId("1001");
         client.setFullName("Test Client");
 
         client = clientRepository.saveAndFlush(client);
 
-        Courier courier = createCourier(2001);
+        Courier courier = createCourier("2001");
 
         Zone zone = new Zone();
         zone.setName("Central Zone");
@@ -306,7 +306,7 @@ class CourierServiceIntegrationTest {
         return orderRepository.saveAndFlush(order);
     }
 
-    private Courier createCourier(Integer userId) {
+    private Courier createCourier(String userId) {
         Courier courier = new Courier();
         courier.setUserId(userId);
         courier.setFullName("Test Courier");

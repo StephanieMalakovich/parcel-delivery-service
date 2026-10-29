@@ -15,9 +15,9 @@ public record OrderStatusChangedEvent(
         OrderStatus status,
         CancelledBy cancelledBy,
         Integer zoneId,
-        Integer clientUserId,
-        Integer previousCourierUserId,
-        Integer courierUserId,
+        String clientUserId,
+        String previousCourierUserId,
+        String courierUserId,
         LocalDateTime createdAt,
         LocalDateTime assignedAt,
         LocalDateTime pickedUpAt,
@@ -27,11 +27,11 @@ public record OrderStatusChangedEvent(
     public static final String TYPE = "ORDER_STATUS_CHANGED";
 
     public static OrderStatusChangedEvent from(Order order) {
-        Integer courierUserId = order.getCourier() == null ? null : order.getCourier().getUserId();
+        String courierUserId = order.getCourier() == null ? null : order.getCourier().getUserId();
         return of(order, null, courierUserId);
     }
 
-    public static OrderStatusChangedEvent of(Order order, Integer previousCourierUserId, Integer courierUserId) {
+    public static OrderStatusChangedEvent of(Order order, String previousCourierUserId, String courierUserId) {
         return new OrderStatusChangedEvent(
                 UUID.randomUUID(),
                 TYPE,

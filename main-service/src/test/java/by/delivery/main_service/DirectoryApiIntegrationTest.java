@@ -90,20 +90,20 @@ class DirectoryApiIntegrationTest {
     void givenClient_whenCrudOverHttp_thenAllOperationsWork() throws Exception {
 
         MvcResult created = send(post("/api/v1/clients"),
-                "{\"userId\": 1, \"fullName\": \"Анна\", \"phone\": \"79001112233\"}")
+                "{\"userId\": \"1\", \"fullName\": \"Анна\", \"phone\": \"79001112233\"}")
                 .andExpect(status().isCreated())
                 .andReturn();
         int id = JsonPath.read(body(created), "$.id");
 
         send(get("/api/v1/clients/" + id), null).andExpect(jsonPath("$.fullName", is("Анна")));
-        mockMvc.perform(get("/api/v1/clients/me").with(TestJwt.customer(1))).andExpect(jsonPath("$.id", is(id)));
+        mockMvc.perform(get("/api/v1/clients/me").with(TestJwt.customer("1"))).andExpect(jsonPath("$.id", is(id)));
         send(put("/api/v1/clients/" + id), "{\"fullName\": \"Анна Новая\", \"phone\": \"79000000000\"}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fullName", is("Анна Новая")));
 
         // Повторная регистрация того же пользователя и неверный телефон
-        send(post("/api/v1/clients"), "{\"userId\": 1, \"fullName\": \"Дубль\"}").andExpect(status().isConflict());
-        send(post("/api/v1/clients"), "{\"userId\": 2, \"fullName\": \"Б\", \"phone\": \"abc\"}")
+        send(post("/api/v1/clients"), "{\"userId\": \"1\", \"fullName\": \"Дубль\"}").andExpect(status().isConflict());
+        send(post("/api/v1/clients"), "{\"userId\": \"2\", \"fullName\": \"Б\", \"phone\": \"abc\"}")
                 .andExpect(status().isBadRequest());
 
         send(delete("/api/v1/clients/" + id), null).andExpect(status().isNoContent());
@@ -117,7 +117,7 @@ class DirectoryApiIntegrationTest {
         int zoneB = createZone("Б");
 
         MvcResult created = send(post("/api/v1/couriers"),
-                "{\"userId\": 10, \"fullName\": \"Иван\", \"zoneIds\": [" + zoneA + "]}")
+                "{\"userId\": \"10\", \"fullName\": \"Иван\", \"zoneIds\": [" + zoneA + "]}")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.zoneIds", contains(zoneA)))
                 .andReturn();
@@ -134,7 +134,7 @@ class DirectoryApiIntegrationTest {
                 .andExpect(jsonPath("$.content", hasSize(0)));
 
         // Зона, не существующая в БД
-        send(post("/api/v1/couriers"), "{\"userId\": 11, \"fullName\": \"Петр\", \"zoneIds\": [9999]}")
+        send(post("/api/v1/couriers"), "{\"userId\": \"11\", \"fullName\": \"Петр\", \"zoneIds\": [9999]}")
                 .andExpect(status().isNotFound());
 
         send(delete("/api/v1/couriers/" + id), null).andExpect(status().isNoContent());

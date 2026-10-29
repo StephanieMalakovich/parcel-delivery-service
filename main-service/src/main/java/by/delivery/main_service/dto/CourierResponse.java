@@ -7,7 +7,7 @@ import by.delivery.main_service.repository.entity.CourierStatus;
 
 public record CourierResponse(
         Integer id,
-        Integer userId,
+        String userId,
         String fullName,
         CourierStatus status,
         String phone,

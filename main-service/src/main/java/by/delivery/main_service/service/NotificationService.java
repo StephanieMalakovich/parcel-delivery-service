@@ -25,12 +25,12 @@ public class NotificationService {
     private final UserNotificationRepository notificationRepository;
 
     @Transactional
-    public void notifyUser(Integer userId, NotificationType type, String text) {
+    public void notifyUser(String userId, NotificationType type, String text) {
         notifyUsers(List.of(userId), type, text);
     }
 
     @Transactional
-    public void notifyUsers(Collection<Integer> userIds, NotificationType type, String text) {
+    public void notifyUsers(Collection<String> userIds, NotificationType type, String text) {
         List<UserNotification> notifications = userIds.stream()
                 .distinct()
                 .map(userId -> createNotification(userId, type, text))
@@ -41,7 +41,7 @@ public class NotificationService {
         }
     }
 
-    private UserNotification createNotification(Integer userId, NotificationType type, String text) {
+    private UserNotification createNotification(String userId, NotificationType type, String text) {
         UserNotification notification = new UserNotification();
         notification.setUserId(userId);
         notification.setType(type);
@@ -50,7 +50,7 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<NotificationResponse> getNotifications(Integer userId, boolean unreadOnly, Pageable pageable) {
+    public PageResponse<NotificationResponse> getNotifications(String userId, boolean unreadOnly, Pageable pageable) {
         Page<UserNotification> notifications = unreadOnly
                 ? notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId, pageable)
                 : notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
@@ -58,12 +58,12 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public long countUnread(Integer userId) {
+    public long countUnread(String userId) {
         return notificationRepository.countByUserIdAndIsReadFalse(userId);
     }
 
     @Transactional
-    public NotificationResponse markRead(Integer userId, Integer notificationId) {
+    public NotificationResponse markRead(String userId, Integer notificationId) {
         UserNotification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new EntityNotFoundException("Уведомление не найдено: " + notificationId));
         if (!Objects.equals(notification.getUserId(), userId)) {

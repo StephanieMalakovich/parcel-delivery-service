@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ClientRepository extends JpaRepository<Client, Integer> {
 
-    Optional<Client> findByUserId(Integer userId);
+    Optional<Client> findByUserId(String userId);
 
-    boolean existsByUserId(Integer userId);
+    boolean existsByUserId(String userId);
 }

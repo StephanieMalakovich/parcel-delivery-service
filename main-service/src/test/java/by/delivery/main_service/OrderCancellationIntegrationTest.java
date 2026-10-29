@@ -87,7 +87,7 @@ class OrderCancellationIntegrationTest {
         Integer orderId = order.getId();
 
         // When
-        orderService.cancelOrderByClient(1001, orderId);
+        orderService.cancelOrderByClient("1001", orderId);
 
         // Then
         Order saved = orderRepository.findById(orderId)
@@ -114,7 +114,7 @@ class OrderCancellationIntegrationTest {
                 applicationEvents.stream(OrderCancelledEvent.class).count()
         ).isEqualTo(1);
 
-        assertThat(countNotifications(2001)).isZero();
+        assertThat(countNotifications("2001")).isZero();
     }
 
     @Test
@@ -126,7 +126,7 @@ class OrderCancellationIntegrationTest {
         Integer courierId = order.getCourier().getId();
 
         // When
-        orderService.cancelOrderByClient(1001, orderId);
+        orderService.cancelOrderByClient("1001", orderId);
 
         // Then
         Order saved = orderRepository.findById(orderId)
@@ -154,7 +154,7 @@ class OrderCancellationIntegrationTest {
         assertThat(courier.getStatus())
                 .isEqualTo(CourierStatus.AVAILABLE);
 
-        assertThat(countNotifications(2001)).isEqualTo(1);
+        assertThat(countNotifications("2001")).isEqualTo(1);
 
         Long cancellationNotifications = jdbcTemplate.queryForObject(
                 """
@@ -164,7 +164,7 @@ class OrderCancellationIntegrationTest {
                   AND type = ?
                 """,
                 Long.class,
-                2001,
+                "2001",
                 NotificationType.ORDER_CANCELLED.name()
         );
 
@@ -187,7 +187,7 @@ class OrderCancellationIntegrationTest {
 
         // When / Then
         assertThatThrownBy(() ->
-                orderService.cancelOrderByClient(9999, orderId)
+                orderService.cancelOrderByClient("9999", orderId)
         ).isInstanceOf(SecurityException.class);
 
         // Данные остались прежними.
@@ -204,7 +204,7 @@ class OrderCancellationIntegrationTest {
                 applicationEvents.stream(OrderCancelledEvent.class).count()
         ).isZero();
 
-        assertThat(countNotifications(2001)).isZero();
+        assertThat(countNotifications("2001")).isZero();
     }
 
     @ParameterizedTest
@@ -222,7 +222,7 @@ class OrderCancellationIntegrationTest {
 
         // When / Then
         assertThatThrownBy(() ->
-                orderService.cancelOrderByClient(1001, orderId)
+                orderService.cancelOrderByClient("1001", orderId)
         ).isInstanceOf(IllegalStateException.class);
 
         // Исходное состояние не изменено.
@@ -244,7 +244,7 @@ class OrderCancellationIntegrationTest {
 
         // When / Then
         assertThatThrownBy(() ->
-                orderService.cancelOrderByClient(1001, missingOrderId)
+                orderService.cancelOrderByClient("1001", missingOrderId)
         ).isInstanceOf(EntityNotFoundException.class);
 
         assertThat(
@@ -252,7 +252,7 @@ class OrderCancellationIntegrationTest {
         ).isZero();
     }
 
-    private long countNotifications(Integer userId) {
+    private long countNotifications(String userId) {
         Long count = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
@@ -269,14 +269,14 @@ class OrderCancellationIntegrationTest {
     private Order createOrder(OrderStatus status) {
 
         Client client = new Client();
-        client.setUserId(1001);
+        client.setUserId("1001");
         client.setFullName("Test Client");
         client = clientRepository.saveAndFlush(client);
 
         Courier courier = null;
 
         if (status != OrderStatus.SEARCHING_COURIER) {
-            courier = createCourier(2001);
+            courier = createCourier("2001");
         }
 
         Zone zone = new Zone();
@@ -317,7 +317,7 @@ class OrderCancellationIntegrationTest {
         return orderRepository.saveAndFlush(order);
     }
 
-    private Courier createCourier(Integer userId) {
+    private Courier createCourier(String userId) {
         Courier courier = new Courier();
         courier.setUserId(userId);
         courier.setFullName("Test Courier");

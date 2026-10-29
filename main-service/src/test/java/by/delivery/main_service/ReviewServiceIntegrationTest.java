@@ -88,7 +88,7 @@ class ReviewServiceIntegrationTest {
         // When
         reviewService.leaveReview(
                 orderId,
-                1001,
+                "1001",
                 5,
                 "Excellent delivery");
 
@@ -131,7 +131,7 @@ class ReviewServiceIntegrationTest {
         // When / Then
         assertThatThrownBy(() -> reviewService.leaveReview(
                 order.getId(),
-                9999,
+                "9999",
                 4,
                 "Good")).isInstanceOf(SecurityException.class);
 
@@ -157,7 +157,7 @@ class ReviewServiceIntegrationTest {
         // When / Then
         assertThatThrownBy(() -> reviewService.leaveReview(
                 order.getId(),
-                1001,
+                "1001",
                 4,
                 "Good")).isInstanceOf(IllegalStateException.class);
 
@@ -176,14 +176,14 @@ class ReviewServiceIntegrationTest {
 
         reviewService.leaveReview(
                 order.getId(),
-                1001,
+                "1001",
                 5,
                 "First review");
 
         // When / Then
         assertThatThrownBy(() -> reviewService.leaveReview(
                 order.getId(),
-                1001,
+                "1001",
                 3,
                 "Second review")).isInstanceOf(IllegalStateException.class);
 
@@ -206,7 +206,7 @@ class ReviewServiceIntegrationTest {
         // When / Then
         assertThatThrownBy(() -> reviewService.leaveReview(
                 order.getId(),
-                1001,
+                "1001",
                 rating,
                 "Review")).isInstanceOf(IllegalArgumentException.class);
 
@@ -226,7 +226,7 @@ class ReviewServiceIntegrationTest {
         // When / Then
         assertThatThrownBy(() -> reviewService.leaveReview(
                 missingOrderId,
-                1001,
+                "1001",
                 5,
                 "Review")).isInstanceOf(EntityNotFoundException.class);
 
@@ -237,12 +237,12 @@ class ReviewServiceIntegrationTest {
     private Order createOrder(OrderStatus status) {
 
         Client client = new Client();
-        client.setUserId(1001);
+        client.setUserId("1001");
         client.setFullName("Test Client");
         client = clientRepository.saveAndFlush(client);
 
         Courier courier = new Courier();
-        courier.setUserId(2001);
+        courier.setUserId("2001");
         courier.setFullName("Test Courier");
         courier.setStatus(CourierStatus.AVAILABLE);
         courier = courierRepository.saveAndFlush(courier);

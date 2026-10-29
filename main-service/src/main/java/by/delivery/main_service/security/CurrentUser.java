@@ -1,35 +1,25 @@
 package by.delivery.main_service.security;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
+// Достаёт данные текущего пользователя из JWT, который уже проверил Spring Security.
+// Идентификатор берётся только из токена, поэтому подделать его запросом нельзя.
 @Component
 public class CurrentUser {
 
     private static final String ADMIN_AUTHORITY = "ROLE_ADMIN";
 
-    private final String userIdClaim;
-
-    public CurrentUser(@Value("${app.security.user-id-claim:user_id}") String userIdClaim) {
-        this.userIdClaim = userIdClaim;
-    }
-
-    public Integer id() {
-        Object value = jwt().getClaim(userIdClaim);
-        if (value instanceof Number number) {
-            return number.intValue();
+    // sub — уникальный id пользователя в Keycloak (UUID), он же userId в таблицах clients, couriers, notifications
+    public String id() {
+        String subject = jwt().getSubject();
+        if (subject == null || subject.isBlank()) {
+            throw new AccessDeniedException("В токене нет идентификатора пользователя (sub)");
         }
-        if (value instanceof String text) {
-            try {
-                return Integer.valueOf(text.trim());
-            } catch (NumberFormatException e) {
-            }
-        }
-        throw new AccessDeniedException("В токене нет числового claim '" + userIdClaim + "'");
+        return subject;
     }
 
     public boolean isAdmin() {

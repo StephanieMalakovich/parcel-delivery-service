@@ -103,7 +103,8 @@ class OrderServiceIntegrationTest {
     // ===================== создание заказа (4.3.2) =====================
 
     @Test
-    void givenZoneWithCouriers_whenCreateOrder_thenOrderSavedAndZoneCouriersNotified(ApplicationEvents applicationEvents) {
+    void givenZoneWithCouriers_whenCreateOrder_thenOrderSavedAndZoneCouriersNotified(
+            ApplicationEvents applicationEvents) {
 
         // Given
         Zone zone = newZone();
@@ -157,7 +158,7 @@ class OrderServiceIntegrationTest {
         assertThatThrownBy(() -> orderService.createOrder(client.getUserId(),
                 new CreateOrderRequest(zone.getId(), "A", "B", null)))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> orderService.createOrder(987654,
+        assertThatThrownBy(() -> orderService.createOrder("987654",
                 new CreateOrderRequest(zone.getId(), "A", "B", validParcel)))
                 .isInstanceOf(EntityNotFoundException.class);
         assertThatThrownBy(() -> orderService.createOrder(client.getUserId(),
@@ -260,7 +261,7 @@ class OrderServiceIntegrationTest {
         // When / Then: заказ или курьер не существуют
         assertThatThrownBy(() -> orderService.acceptOrder(inZone.getUserId(), 987654))
                 .isInstanceOf(EntityNotFoundException.class);
-        assertThatThrownBy(() -> orderService.acceptOrder(987654, first.id()))
+        assertThatThrownBy(() -> orderService.acceptOrder("987654", first.id()))
                 .isInstanceOf(EntityNotFoundException.class);
 
         // When / Then: занятый курьер не может взять второй заказ
@@ -277,7 +278,8 @@ class OrderServiceIntegrationTest {
                 .isEqualTo(OrderStatus.SEARCHING_COURIER);
     }
 
-    // ===================== управление администратором (4.3.8) =====================
+    // ===================== управление администратором (4.3.8)
+    // =====================
 
     @Test
     void givenAssignedOrder_whenAdminReassigns_thenCouriersSwappedAndNotified(ApplicationEvents applicationEvents) {
@@ -355,7 +357,8 @@ class OrderServiceIntegrationTest {
     }
 
     @Test
-    void givenAssignedOrder_whenAdminCancels_thenCourierFreedAndBothEventsPublished(ApplicationEvents applicationEvents) {
+    void givenAssignedOrder_whenAdminCancels_thenCourierFreedAndBothEventsPublished(
+            ApplicationEvents applicationEvents) {
 
         // Given
         Zone zone = newZone();
@@ -429,7 +432,7 @@ class OrderServiceIntegrationTest {
 
     private Client newClient() {
         Client client = new Client();
-        client.setUserId(SEQ.incrementAndGet());
+        client.setUserId(String.valueOf(SEQ.incrementAndGet()));
         client.setFullName("Клиент");
         return clientRepository.save(client);
     }
@@ -437,7 +440,7 @@ class OrderServiceIntegrationTest {
     private Courier newCourier(Zone zone) {
         return tx.execute(status -> {
             Courier courier = new Courier();
-            courier.setUserId(SEQ.incrementAndGet());
+            courier.setUserId(String.valueOf(SEQ.incrementAndGet()));
             courier.setFullName("Курьер " + courier.getUserId());
             courierRepository.save(courier);
             if (zone != null) {
@@ -459,7 +462,7 @@ class OrderServiceIntegrationTest {
         return courierRepository.findById(courier.getId()).orElseThrow().getStatus();
     }
 
-    private long countNotifications(Integer userId, NotificationType type) {
+    private long countNotifications(String userId, NotificationType type) {
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(0, 50))
                 .getContent()
                 .stream()

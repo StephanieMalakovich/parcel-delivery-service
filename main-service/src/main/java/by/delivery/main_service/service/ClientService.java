@@ -31,7 +31,7 @@ public class ClientService {
     }
 
     @Transactional(readOnly = true)
-    public ClientResponse getByUserId(Integer userId) {
+    public ClientResponse getByUserId(String userId) {
         return ClientResponse.from(clientRepository.findByUserId(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Профиль клиента не найден: " + userId)));
     }

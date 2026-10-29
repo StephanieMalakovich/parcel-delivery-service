@@ -131,15 +131,15 @@ class CrudIntegrationTest {
     void givenNewClient_whenCrudOperations_thenClientIsCreatedUpdatedAndDeleted() {
 
         // Given
-        Client client = newClient(1001);
+        Client client = newClient("1001");
 
         // When: создание
         Client saved = clientRepository.saveAndFlush(client);
 
         // Then
         assertThat(saved.getId()).isNotNull();
-        assertThat(clientRepository.findByUserId(1001)).isPresent();
-        assertThat(clientRepository.existsByUserId(1001)).isTrue();
+        assertThat(clientRepository.findByUserId("1001")).isPresent();
+        assertThat(clientRepository.existsByUserId("1001")).isTrue();
 
         // When: обновление
         saved.setPhone("79991112233");
@@ -152,14 +152,14 @@ class CrudIntegrationTest {
         clientRepository.deleteById(saved.getId());
 
         // Then
-        assertThat(clientRepository.findByUserId(1001)).isEmpty();
+        assertThat(clientRepository.findByUserId("1001")).isEmpty();
     }
 
     @Test
     void givenCourierAndZone_whenLinked_thenCourierZoneIsCreatedAndDeleted() {
 
         // Given
-        Courier courier = courierRepository.saveAndFlush(newCourier(2001));
+        Courier courier = courierRepository.saveAndFlush(newCourier("2001"));
         Zone zone = zoneRepository.saveAndFlush(newZone("Советский"));
 
         courierZoneRepository.saveAndFlush(new CourierZone(courier, zone));
@@ -181,7 +181,7 @@ class CrudIntegrationTest {
     void givenNewCourier_whenUpdateStatus_thenStatusIsSavedAndFilterWorks() {
 
         // Given
-        Courier courier = courierRepository.saveAndFlush(newCourier(2001));
+        Courier courier = courierRepository.saveAndFlush(newCourier("2001"));
         assertThat(courierRepository.findByStatus(CourierStatus.AVAILABLE)).hasSize(1);
 
         // When
@@ -197,7 +197,7 @@ class CrudIntegrationTest {
     void givenOrderWithParcel_whenCrudOperations_thenParcelFollowsOrder() {
 
         // Given
-        Client client = clientRepository.saveAndFlush(newClient(1001));
+        Client client = clientRepository.saveAndFlush(newClient("1001"));
         Zone zone = zoneRepository.saveAndFlush(newZone("Центральный"));
 
         Order order = new Order();
@@ -245,8 +245,8 @@ class CrudIntegrationTest {
     void givenDeliveredOrder_whenReviewSaved_thenReviewIsReadableAndUnique() {
 
         // Given
-        Client client = clientRepository.saveAndFlush(newClient(1001));
-        Courier courier = courierRepository.saveAndFlush(newCourier(2001));
+        Client client = clientRepository.saveAndFlush(newClient("1001"));
+        Courier courier = courierRepository.saveAndFlush(newCourier("2001"));
         Zone zone = zoneRepository.saveAndFlush(newZone("Центральный"));
 
         Order order = new Order();
@@ -286,21 +286,21 @@ class CrudIntegrationTest {
     void givenNotifications_whenMarkedRead_thenUnreadCounterDecreases() {
 
         // Given
-        notificationRepository.saveAndFlush(newNotification(1001, "Первое"));
-        UserNotification second = notificationRepository.saveAndFlush(newNotification(1001, "Второе"));
-        notificationRepository.saveAndFlush(newNotification(1002, "Чужое"));
+        notificationRepository.saveAndFlush(newNotification("1001", "Первое"));
+        UserNotification second = notificationRepository.saveAndFlush(newNotification("1001", "Второе"));
+        notificationRepository.saveAndFlush(newNotification("1002", "Чужое"));
 
         // Then
-        assertThat(notificationRepository.countByUserIdAndIsReadFalse(1001)).isEqualTo(2);
+        assertThat(notificationRepository.countByUserIdAndIsReadFalse("1001")).isEqualTo(2);
 
         // When: обновление (прочитано)
         second.setIsRead(true);
         notificationRepository.saveAndFlush(second);
 
         // Then
-        assertThat(notificationRepository.countByUserIdAndIsReadFalse(1001)).isEqualTo(1);
+        assertThat(notificationRepository.countByUserIdAndIsReadFalse("1001")).isEqualTo(1);
         assertThat(notificationRepository
-                .findByUserIdAndIsReadFalseOrderByCreatedAtDesc(1001, PageRequest.of(0, 10)).getContent())
+                .findByUserIdAndIsReadFalseOrderByCreatedAtDesc("1001", PageRequest.of(0, 10)).getContent())
                 .hasSize(1);
 
         // When: удаление
@@ -308,7 +308,7 @@ class CrudIntegrationTest {
 
         // Then
         assertThat(notificationRepository
-                .findByUserIdOrderByCreatedAtDesc(1001, PageRequest.of(0, 10)).getContent())
+                .findByUserIdOrderByCreatedAtDesc("1001", PageRequest.of(0, 10)).getContent())
                 .hasSize(1);
     }
 
@@ -318,21 +318,21 @@ class CrudIntegrationTest {
         return zone;
     }
 
-    private Client newClient(Integer userId) {
+    private Client newClient(String userId) {
         Client client = new Client();
         client.setUserId(userId);
         client.setFullName("Тестовый клиент " + userId);
         return client;
     }
 
-    private Courier newCourier(Integer userId) {
+    private Courier newCourier(String userId) {
         Courier courier = new Courier();
         courier.setUserId(userId);
         courier.setFullName("Тестовый курьер " + userId);
         return courier;
     }
 
-    private UserNotification newNotification(Integer userId, String text) {
+    private UserNotification newNotification(String userId, String text) {
         UserNotification notification = new UserNotification();
         notification.setUserId(userId);
         notification.setType(NotificationType.ORDER_STATUS_CHANGED);

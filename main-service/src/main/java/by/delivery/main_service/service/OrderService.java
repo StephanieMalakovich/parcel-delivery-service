@@ -51,7 +51,7 @@ public class OrderService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public OrderResponse createOrder(Integer userId, CreateOrderRequest request) {
+    public OrderResponse createOrder(String userId, CreateOrderRequest request) {
         validate(request);
 
         Client client = clientRepository.findByUserId(userId)
@@ -81,7 +81,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse acceptOrder(Integer courierUserId, Integer orderId) {
+    public OrderResponse acceptOrder(String courierUserId, Integer orderId) {
         Courier courier = courierRepository.findByUserId(courierUserId)
                 .orElseThrow(() -> new EntityNotFoundException("Профиль курьера не найден: " + courierUserId));
         Order order = loadOrderForUpdate(orderId);
@@ -107,7 +107,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse cancelOrderByClient(Integer userId, Integer orderId) {
+    public OrderResponse cancelOrderByClient(String userId, Integer orderId) {
         if (userId == null || orderId == null) {
             throw new IllegalArgumentException("Идентификаторы пользователя и заказа обязательны");
         }
@@ -143,7 +143,7 @@ public class OrderService {
             throw new IllegalStateException("Новый курьер не обслуживает зону заказа");
         }
 
-        Integer previousUserId = previous == null ? null : previous.getUserId();
+        String previousUserId = previous == null ? null : previous.getUserId();
 
         order.setCourier(next);
         next.setStatus(CourierStatus.BUSY);
@@ -183,7 +183,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public OrderResponse getOrderForUser(Integer orderId, Integer userId, boolean admin) {
+    public OrderResponse getOrderForUser(Integer orderId, String userId, boolean admin) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Заказ не найден: " + orderId));
 
@@ -197,14 +197,14 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getClientOrders(Integer userId, Pageable pageable) {
+    public PageResponse<OrderResponse> getClientOrders(String userId, Pageable pageable) {
         Client client = clientRepository.findByUserId(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Профиль клиента не найден: " + userId));
         return toPage(orderRepository.findByClient_Id(client.getId(), pageable));
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getCourierOrders(Integer courierUserId, OrderStatus status, Pageable pageable) {
+    public PageResponse<OrderResponse> getCourierOrders(String courierUserId, OrderStatus status, Pageable pageable) {
         Courier courier = courierRepository.findByUserId(courierUserId)
                 .orElseThrow(() -> new EntityNotFoundException("Профиль курьера не найден: " + courierUserId));
         if (status == null) {
@@ -214,7 +214,7 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<OrderResponse> getAvailableOrders(Integer courierUserId, Pageable pageable) {
+    public PageResponse<OrderResponse> getAvailableOrders(String courierUserId, Pageable pageable) {
         Courier courier = courierRepository.findByUserId(courierUserId)
                 .orElseThrow(() -> new EntityNotFoundException("Профиль курьера не найден: " + courierUserId));
         List<Integer> zoneIds = courierZoneRepository.findByCourier_Id(courier.getId()).stream()
@@ -245,7 +245,7 @@ public class OrderService {
         order.changeStatus(OrderStatus.CANCELLED, LocalDateTime.now());
         order.setCancelledBy(cancelledBy);
 
-        Integer courierUserId = null;
+        String courierUserId = null;
         if (courier != null) {
             courierUserId = courier.getUserId();
             courier.setStatus(CourierStatus.AVAILABLE);
@@ -279,7 +279,7 @@ public class OrderService {
     }
 
     private void notifyCouriersOfZone(Order order, Zone zone) {
-        List<Integer> courierUserIds = courierZoneRepository.findByZone_Id(zone.getId()).stream()
+        List<String> courierUserIds = courierZoneRepository.findByZone_Id(zone.getId()).stream()
                 .map(link -> link.getCourier().getUserId())
                 .toList();
 

@@ -9,9 +9,9 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CourierRepository extends JpaRepository<Courier, Integer> {
-    Optional<Courier> findByUserId(Integer userId);
+    Optional<Courier> findByUserId(String userId);
 
-    boolean existsByUserId(Integer userId);
+    boolean existsByUserId(String userId);
 
     List<Courier> findByStatus(CourierStatus status);
 }

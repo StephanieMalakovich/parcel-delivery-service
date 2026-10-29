@@ -1,6 +1,5 @@
 package by.delivery.main_service;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -17,7 +16,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -33,6 +31,7 @@ import com.jayway.jsonpath.JsonPath;
 @RecordApplicationEvents
 class SecurityIntegrationTest {
 
+    // Корректное тело заказа: @Valid проверяется до @PreAuthorize, и с невалидным телом пришёл бы 400, а не 403
     private static final String VALID_ORDER = """
             {"zoneId": 1, "pickupAddress": "A", "deliveryAddress": "B",
              "parcel": {"weightKg": 1, "size": "SMALL"}}
@@ -72,7 +71,7 @@ class SecurityIntegrationTest {
 
     @Test
     void givenCustomer_whenCallsNonCustomerEndpoints_thenForbidden() throws Exception {
-        RequestPostProcessor customer = TestJwt.customer(1001);
+        RequestPostProcessor customer = TestJwt.customer("1001");
 
         mockMvc.perform(get("/api/v1/orders").with(customer)).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/orders/assigned").with(customer)).andExpect(status().isForbidden());
@@ -94,7 +93,7 @@ class SecurityIntegrationTest {
 
     @Test
     void givenCourier_whenCallsNonCourierEndpoints_thenForbidden() throws Exception {
-        RequestPostProcessor courier = TestJwt.courier(2001);
+        RequestPostProcessor courier = TestJwt.courier("2001");
 
         mockMvc.perform(post("/api/v1/orders").with(courier)
                 .contentType(MediaType.APPLICATION_JSON).content(VALID_ORDER))
@@ -125,7 +124,7 @@ class SecurityIntegrationTest {
     @Test
     void givenAnyRole_whenReadsZonesAndNotifications_thenOk() throws Exception {
         for (RequestPostProcessor user : new RequestPostProcessor[] {
-                TestJwt.customer(1001), TestJwt.courier(2001), TestJwt.admin() }) {
+                TestJwt.customer("1001"), TestJwt.courier("2001"), TestJwt.admin() }) {
             mockMvc.perform(get("/api/v1/zones").with(user)).andExpect(status().isOk());
             mockMvc.perform(get("/api/v1/notifications").with(user)).andExpect(status().isOk());
             mockMvc.perform(get("/api/v1/notifications/unread-count").with(user)).andExpect(status().isOk());
@@ -134,15 +133,15 @@ class SecurityIntegrationTest {
 
     @Test
     void givenCustomer_whenRegistersProfile_thenOnlyForHimself() throws Exception {
-        RequestPostProcessor customer = TestJwt.customer(1001);
+        RequestPostProcessor customer = TestJwt.customer("1001");
 
         mockMvc.perform(post("/api/v1/clients").with(customer)
                 .contentType(MediaType.APPLICATION_JSON).characterEncoding(StandardCharsets.UTF_8)
-                .content("{\"userId\": 1002, \"fullName\": \"Чужой\"}"))
+                .content("{\"userId\": \"1002\", \"fullName\": \"Чужой\"}"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/clients").with(customer)
                 .contentType(MediaType.APPLICATION_JSON).characterEncoding(StandardCharsets.UTF_8)
-                .content("{\"userId\": 1001, \"fullName\": \"Свой\"}"))
+                .content("{\"userId\": \"1001\", \"fullName\": \"Свой\"}"))
                 .andExpect(status().isCreated());
         mockMvc.perform(get("/api/v1/clients/me").with(customer)).andExpect(status().isOk());
     }
@@ -153,50 +152,50 @@ class SecurityIntegrationTest {
         // Given: зона, два заказчика, два курьера; заказ принят первым курьером
         int zoneId = id(mockMvc.perform(post("/api/v1/zones").with(TestJwt.admin())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"name\": \"Центр\"}")).andReturn());
-        createClient(1001);
-        createClient(1002);
-        createCourier(2001, zoneId);
-        createCourier(2002, zoneId);
-        int orderId = id(mockMvc.perform(post("/api/v1/orders").with(TestJwt.customer(1001))
+        createClient("1001");
+        createClient("1002");
+        createCourier("2001", zoneId);
+        createCourier("2002", zoneId);
+        int orderId = id(mockMvc.perform(post("/api/v1/orders").with(TestJwt.customer("1001"))
                 .contentType(MediaType.APPLICATION_JSON).characterEncoding(StandardCharsets.UTF_8)
                 .content("""
                         {"zoneId": %d, "pickupAddress": "A", "deliveryAddress": "B",
                          "parcel": {"weightKg": 1, "size": "SMALL"}}
                         """.formatted(zoneId)))
                 .andExpect(status().isCreated()).andReturn());
-        mockMvc.perform(post("/api/v1/orders/" + orderId + "/accept").with(TestJwt.courier(2001)))
+        mockMvc.perform(post("/api/v1/orders/" + orderId + "/accept").with(TestJwt.courier("2001")))
                 .andExpect(status().isOk());
 
         // Then: участники и администратор видят заказ
-        mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.customer(1001))).andExpect(status().isOk());
-        mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.courier(2001))).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.customer("1001"))).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.courier("2001"))).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.admin())).andExpect(status().isOk());
 
         // Then: посторонние — нет
-        mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.customer(1002)))
+        mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.customer("1002")))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.courier(2002)))
+        mockMvc.perform(get("/api/v1/orders/" + orderId).with(TestJwt.courier("2002")))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void givenTokenWithoutUserIdClaim_whenCallsUserSpecificEndpoint_thenForbidden() throws Exception {
-        mockMvc.perform(get("/api/v1/orders/my")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
-                .andExpect(status().isForbidden());
+    void givenCustomerWithoutProfile_whenReadsOwnOrders_thenNotFound() throws Exception {
+        // токен валидный и роль подходит, но профиль клиента в БД ещё не создан
+        mockMvc.perform(get("/api/v1/orders/my").with(TestJwt.customer("unknown-sub")))
+                .andExpect(status().isNotFound());
     }
 
-    private void createClient(int userId) throws Exception {
+    private void createClient(String userId) throws Exception {
         mockMvc.perform(post("/api/v1/clients").with(TestJwt.admin())
                 .contentType(MediaType.APPLICATION_JSON).characterEncoding(StandardCharsets.UTF_8)
-                .content("{\"userId\": " + userId + ", \"fullName\": \"Клиент " + userId + "\"}"))
+                .content("{\"userId\": \"" + userId + "\", \"fullName\": \"Клиент " + userId + "\"}"))
                 .andExpect(status().isCreated());
     }
 
-    private void createCourier(int userId, int zoneId) throws Exception {
+    private void createCourier(String userId, int zoneId) throws Exception {
         MockHttpServletRequestBuilder request = post("/api/v1/couriers").with(TestJwt.admin())
                 .contentType(MediaType.APPLICATION_JSON).characterEncoding(StandardCharsets.UTF_8)
-                .content("{\"userId\": " + userId + ", \"fullName\": \"Курьер " + userId
+                .content("{\"userId\": \"" + userId + "\", \"fullName\": \"Курьер " + userId
                         + "\", \"zoneIds\": [" + zoneId + "]}");
         mockMvc.perform(request).andExpect(status().isCreated());
     }

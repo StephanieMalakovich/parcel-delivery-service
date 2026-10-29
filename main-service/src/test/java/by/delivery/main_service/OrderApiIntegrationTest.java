@@ -33,8 +33,8 @@ import com.jayway.jsonpath.JsonPath;
 @RecordApplicationEvents
 class OrderApiIntegrationTest {
 
-    private static final int CLIENT_USER_ID = 1001;
-    private static final int COURIER_USER_ID = 2001;
+    private static final String CLIENT_USER_ID = "1001";
+    private static final String COURIER_USER_ID = "2001";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -157,7 +157,7 @@ class OrderApiIntegrationTest {
         int zoneId = createZone("Центральный");
         createClient(CLIENT_USER_ID);
         createCourier(COURIER_USER_ID, zoneId);
-        int secondCourierId = createCourier(2002, zoneId);
+        int secondCourierId = createCourier("2002", zoneId);
         int orderId = createOrder(zoneId);
         send(post("/api/v1/orders/" + orderId + "/accept"), COURIER_USER_ID, null).andExpect(status().isOk());
 
@@ -186,9 +186,9 @@ class OrderApiIntegrationTest {
         // Given
         int zoneId = createZone("Центральный");
         createClient(CLIENT_USER_ID);
-        createClient(1002);
+        createClient("1002");
         createCourier(COURIER_USER_ID, zoneId);
-        createCourier(2002, zoneId);
+        createCourier("2002", zoneId);
         int orderId = createOrder(zoneId);
 
         // 400: отрицательный вес посылки
@@ -217,11 +217,11 @@ class OrderApiIntegrationTest {
         send(get("/api/v1/orders/999999"), null, null)
                 .andExpect(status().isNotFound());
         // 403: чужой заказ нельзя отменить
-        send(post("/api/v1/orders/" + orderId + "/cancel"), 1002, null)
+        send(post("/api/v1/orders/" + orderId + "/cancel"), "1002", null)
                 .andExpect(status().isForbidden());
         // 409: вторая попытка принять уже принятую заявку
         send(post("/api/v1/orders/" + orderId + "/accept"), COURIER_USER_ID, null).andExpect(status().isOk());
-        send(post("/api/v1/orders/" + orderId + "/accept"), 2002, null)
+        send(post("/api/v1/orders/" + orderId + "/accept"), "2002", null)
                 .andExpect(status().isConflict());
         // 409: оценить недоставленный заказ
         send(post("/api/v1/orders/" + orderId + "/review"), CLIENT_USER_ID, "{\"rating\": 5}")
@@ -235,15 +235,15 @@ class OrderApiIntegrationTest {
         return JsonPath.read(body(result), "$.id");
     }
 
-    private void createClient(int userId) throws Exception {
+    private void createClient(String userId) throws Exception {
         send(post("/api/v1/clients"), null,
-                "{\"userId\": " + userId + ", \"fullName\": \"Клиент " + userId + "\", \"phone\": \"79001112233\"}")
+                "{\"userId\": \"" + userId + "\", \"fullName\": \"Клиент " + userId + "\", \"phone\": \"79001112233\"}")
                 .andExpect(status().isCreated());
     }
 
-    private int createCourier(int userId, int zoneId) throws Exception {
+    private int createCourier(String userId, int zoneId) throws Exception {
         MvcResult result = send(post("/api/v1/couriers"), null,
-                "{\"userId\": " + userId + ", \"fullName\": \"Курьер " + userId + "\", \"zoneIds\": [" + zoneId + "]}")
+                "{\"userId\": \"" + userId + "\", \"fullName\": \"Курьер " + userId + "\", \"zoneIds\": [" + zoneId + "]}")
                 .andExpect(status().isCreated())
                 .andReturn();
         return JsonPath.read(body(result), "$.id");
@@ -269,7 +269,7 @@ class OrderApiIntegrationTest {
 
     private ResultActions send(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,
-            Integer userId,
+            String userId,
             String json) throws Exception {
         request.characterEncoding(StandardCharsets.UTF_8);
         if (json != null) {
@@ -279,11 +279,11 @@ class OrderApiIntegrationTest {
     }
 
     // В тестах пользователи с id от 2000 — курьеры, остальные — заказчики, null — администратор
-    private static RequestPostProcessor tokenFor(Integer userId) {
+    private static RequestPostProcessor tokenFor(String userId) {
         if (userId == null) {
             return TestJwt.admin();
         }
-        return userId >= 2000 ? TestJwt.courier(userId) : TestJwt.customer(userId);
+        return Integer.parseInt(userId) >= 2000 ? TestJwt.courier(userId) : TestJwt.customer(userId);
     }
 
     private String body(MvcResult result) throws Exception {

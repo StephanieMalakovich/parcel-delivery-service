@@ -1,0 +1,86 @@
+databaseChangeLog:
+
+  - changeSet:
+      id: 001-courier-facts
+      author: delivery
+      changes:
+        - createTable:
+            tableName: courier_facts
+            columns:
+              - column: { name: courier_id, type: integer, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: full_name, type: varchar(255), constraints: { nullable: false } }
+
+  - changeSet:
+      id: 002-order-facts
+      author: delivery
+      changes:
+        - createTable:
+            tableName: order_facts
+            columns:
+              - column: { name: order_id, type: integer, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: courier_id, type: integer }
+              - column: { name: status, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: cancelled_by, type: varchar(10) }
+              - column: { name: created_at, type: timestamp, constraints: { nullable: false } }
+              - column: { name: assigned_at, type: timestamp }
+              - column: { name: picked_up_at, type: timestamp }
+              - column: { name: delivered_at, type: timestamp }
+              - column: { name: cancelled_at, type: timestamp }
+        - createIndex:
+            tableName: order_facts
+            indexName: idx_order_facts_courier
+            columns:
+              - column: { name: courier_id }
+
+  - changeSet:
+      id: 003-review-facts
+      author: delivery
+      changes:
+        - createTable:
+            tableName: review_facts
+            columns:
+              - column: { name: review_id, type: integer, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: order_id, type: integer, constraints: { nullable: false } }
+              - column: { name: courier_id, type: integer, constraints: { nullable: false } }
+              - column: { name: rating, type: smallint, constraints: { nullable: false } }
+              - column: { name: created_at, type: timestamp, constraints: { nullable: false } }
+        - createIndex:
+            tableName: review_facts
+            indexName: idx_review_facts_courier
+            columns:
+              - column: { name: courier_id }
+              - column: { name: created_at }
+
+  - changeSet:
+      id: 004-processed-events
+      author: delivery
+      changes:
+        - createTable:
+            tableName: processed_events
+            columns:
+              - column: { name: event_id, type: uuid, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: processed_at, type: timestamp, defaultValueComputed: now(), constraints: { nullable: false } }
+
+  - changeSet:
+      id: 005-check-constraints
+      author: delivery
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE order_facts
+                  ADD CONSTRAINT ck_order_facts_status CHECK (status IN ('DELIVERED', 'CANCELLED'));
+
+              ALTER TABLE order_facts
+                  ADD CONSTRAINT ck_order_facts_cancelled_by
+                  CHECK (cancelled_by IS NULL OR cancelled_by IN ('CLIENT', 'ADMIN'));
+
+              ALTER TABLE order_facts
+                  ADD CONSTRAINT ck_order_facts_delivered
+                  CHECK (status <> 'DELIVERED' OR delivered_at IS NOT NULL);
+
+              ALTER TABLE order_facts
+                  ADD CONSTRAINT ck_order_facts_cancelled
+                  CHECK (status <> 'CANCELLED' OR (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL));
+
+              ALTER TABLE review_facts
+                  ADD CONSTRAINT ck_review_facts_rating CHECK (rating BETWEEN 1 AND 5);

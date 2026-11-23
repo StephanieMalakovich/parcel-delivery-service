@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: stats-service
+
+  datasource:
+    url: ${STATS_DB_URL:jdbc:postgresql://localhost:5434/statsdb}
+    username: ${STATS_DB_USER:postgres}
+    password: ${STATS_DB_PASSWORD:dev_password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: stats-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+
+  grpc:
+    server:
+      port: ${GRPC_PORT:9091}
+
+stats:
+  kafka:
+    topic: ${STATS_KAFKA_TOPIC:delivery.analytics-events}
+    partitions: 3
+  rating-maturity: 7d
+  time-zone: ${STATS_TIME_ZONE:}
+
+logging:
+  level:
+    liquibase: INFO

@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package delivery.stats.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "by.delivery.stats.grpc";
+option java_outer_classname = "StatisticsProto";
+
+service StatisticsService {
+  rpc GetCourierStats(CourierStatsRequest) returns (CourierStatsResponse);
+
+  rpc GetAdminOverview(AdminOverviewRequest) returns (AdminOverviewResponse);
+}
+
+
+message Period {
+  google.protobuf.Timestamp from = 1;
+  google.protobuf.Timestamp to = 2;
+}
+
+message CourierStatsRequest {
+  int32 courier_id = 1;
+  Period period = 2;
+}
+
+message CourierStatsResponse {
+  int32 courier_id = 1;
+  // Пусто, если событие о курьере ещё не приходило.
+  string full_name = 2;
+  // Количество доставленных заказов за период.
+  int64 delivered_count = 3;
+  // Средняя оценка только по отзывам старше 7 дней. Не задано, если таких отзывов нет.
+  optional double average_rating = 4;
+  // Сколько отзывов учтено в average_rating.
+  int64 rated_reviews_count = 5;
+  // Отзывы младше 7 дней, которые ещё не попали в рейтинг.
+  int64 pending_reviews_count = 6;
+  // Среднее время доставки за период, в минутах. Не задано, если доставок нет.
+  optional double average_delivery_minutes = 7;
+}
+
+message AdminOverviewRequest {
+  Period period = 1;
+}
+
+message AdminOverviewResponse {
+  // Доставлено за период.
+  int64 delivered_count = 1;
+  // Отменено за период (всего и по инициатору).
+  int64 cancelled_count = 2;
+  int64 cancelled_by_client_count = 3;
+  int64 cancelled_by_admin_count = 4;
+  // Процент отменённых от всех завершённых за период заказов (0–100).
+  double cancelled_percent = 5;
+  // Среднее время от создания заказа до назначения курьера, в минутах.
+  optional double average_assignment_minutes = 6;
+  // Среднее время от «забрал» до «доставил», в минутах.
+  optional double average_delivery_minutes = 7;
+  // Сводный рейтинг-лист: по убыванию средней оценки.
+  repeated CourierRating courier_ratings = 8;
+}
+
+message CourierRating {
+  // Место в рейтинг-листе, начиная с 1.
+  int32 position = 1;
+  int32 courier_id = 2;
+  string full_name = 3;
+  // Средняя оценка по отзывам старше 7 дней. Не задано, если таких отзывов нет.
+  optional double average_rating = 4;
+  int64 rated_reviews_count = 5;
+  // Доставлено этим курьером за период.
+  int64 delivered_count = 6;
+}

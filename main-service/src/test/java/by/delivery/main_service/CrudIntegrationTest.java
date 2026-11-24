@@ -37,7 +37,7 @@ import by.delivery.main_service.repository.entity.Review;
 import by.delivery.main_service.repository.entity.UserNotification;
 import by.delivery.main_service.repository.entity.Zone;
 
-@SpringBootTest(properties = "spring.liquibase.contexts=test")
+@SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @RecordApplicationEvents
 class CrudIntegrationTest {

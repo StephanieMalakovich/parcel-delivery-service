@@ -1,6 +1,5 @@
 package by.delivery.stats_service.service.model;
 
-
 public record CourierRatingEntry(
         int position,
         int courierId,

@@ -36,7 +36,7 @@ import by.delivery.main_service.service.OrderService;
 
 import jakarta.persistence.EntityNotFoundException;
 
-@SpringBootTest(properties = "spring.liquibase.contexts=test")
+@SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @RecordApplicationEvents
 class OrderCancellationIntegrationTest {

@@ -15,6 +15,7 @@ import by.delivery.main_service.repository.entity.Courier;
 import by.delivery.main_service.repository.entity.CourierStatus;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
+import by.delivery.main_service.statistics.AnalyticsOutbox;
 
 import jakarta.persistence.EntityNotFoundException;
 
@@ -27,6 +28,7 @@ public class CourierService {
     private final OrderRepository orderRepository;
     private final CourierRepository courierRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AnalyticsOutbox analyticsOutbox;
 
     @Transactional
     public OrderResponse changeStatusByCourier(Integer orderId, OrderStatus newStatus, String courierUserId) {
@@ -63,6 +65,9 @@ public class CourierService {
         }
 
         order.changeStatus(newStatus, LocalDateTime.now());
+        if (newStatus == OrderStatus.DELIVERED) {
+            analyticsOutbox.orderDelivered(order);
+        }
         eventPublisher.publishEvent(OrderStatusChangedEvent.from(order));
     }
 

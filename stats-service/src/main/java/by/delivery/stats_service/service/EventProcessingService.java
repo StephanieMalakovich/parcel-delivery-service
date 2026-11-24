@@ -1,174 +1,142 @@
 package by.delivery.stats_service.service;
 
-import java.time.Clock;
+import java.sql.Types;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
 
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import by.delivery.stats_service.event.AnalyticsEventEnvelope;
-import by.delivery.stats_service.event.AnalyticsEventTypes;
-import by.delivery.stats_service.event.CourierUpdatedEvent;
-import by.delivery.stats_service.event.InvalidEventException;
-import by.delivery.stats_service.event.NewReviewEvent;
-import by.delivery.stats_service.event.OrderCancelledEvent;
-import by.delivery.stats_service.event.OrderDeliveredEvent;
-import by.delivery.stats_service.repository.CourierFactRepository;
-import by.delivery.stats_service.repository.OrderFactRepository;
-import by.delivery.stats_service.repository.ProcessedEventRepository;
-import by.delivery.stats_service.repository.ReviewFactRepository;
-import by.delivery.stats_service.repository.entity.CourierFact;
-import by.delivery.stats_service.repository.entity.FactOrderStatus;
-import by.delivery.stats_service.repository.entity.OrderFact;
-import by.delivery.stats_service.repository.entity.ProcessedEvent;
-import by.delivery.stats_service.repository.entity.ReviewFact;
+import by.delivery.stats.grpc.CourierUpdated;
+import by.delivery.stats.grpc.OrderCancelled;
+import by.delivery.stats.grpc.OrderDelivered;
+import by.delivery.stats.grpc.RecordAnalyticsEventRequest;
+import by.delivery.stats.grpc.ReviewCreated;
+import by.delivery.stats_service.grpc.StatisticsProtoMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
-
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class EventProcessingService {
 
-    private final JsonMapper jsonMapper;
-    private final ProcessedEventRepository processedEventRepository;
-    private final OrderFactRepository orderFactRepository;
-    private final ReviewFactRepository reviewFactRepository;
-    private final CourierFactRepository courierFactRepository;
-    private final Clock clock;
+    private final JdbcClient jdbc;
+    private final StatisticsProtoMapper mapper;
 
     @Transactional
-    public void handle(String payload) {
-        AnalyticsEventEnvelope envelope = parse(payload, AnalyticsEventEnvelope.class);
-        require(envelope.eventId() != null, "нет eventId");
-        require(envelope.type() != null, "нет type");
+    public void record(RecordAnalyticsEventRequest event) {
+        UUID eventId = UUID.fromString(event.getEventId());
+        require(event.getFactCase() != RecordAnalyticsEventRequest.FactCase.FACT_NOT_SET, "Не указан тип факта");
 
-        if (processedEventRepository.existsById(envelope.eventId())) {
-            log.info("[Broker 2] Событие {} ({}) уже обработано, пропускаем", envelope.eventId(), envelope.type());
+        int inserted = jdbc.sql("""
+                INSERT INTO processed_events (event_id) VALUES (:id)
+                ON CONFLICT (event_id) DO NOTHING
+                """).param("id", eventId).update();
+        if (inserted == 0) {
             return;
         }
 
-        switch (envelope.type()) {
-            case AnalyticsEventTypes.ORDER_DELIVERED -> apply(parse(payload, OrderDeliveredEvent.class));
-            case AnalyticsEventTypes.ORDER_CANCELLED -> apply(parse(payload, OrderCancelledEvent.class));
-            case AnalyticsEventTypes.NEW_REVIEW -> apply(parse(payload, NewReviewEvent.class));
-            case AnalyticsEventTypes.COURIER_UPDATED -> apply(parse(payload, CourierUpdatedEvent.class));
-            default -> {
-                log.warn("[Broker 2] Неизвестный тип события {}: {}, пропускаем", envelope.type(), envelope.eventId());
-                return;
-            }
+        // The marker and the fact commit together; an invalid payload leaves neither
+        // behind.
+        switch (event.getFactCase()) {
+            case ORDER_DELIVERED -> apply(event.getOrderDelivered());
+            case ORDER_CANCELLED -> apply(event.getOrderCancelled());
+            case REVIEW_CREATED -> apply(event.getReviewCreated());
+            case COURIER_UPDATED -> apply(event.getCourierUpdated());
+            case FACT_NOT_SET -> throw new IllegalArgumentException("Не указан тип факта");
         }
-
-        processedEventRepository.save(new ProcessedEvent(envelope.eventId(), LocalDateTime.now(clock)));
     }
 
-    private void apply(OrderDeliveredEvent event) {
-        require(event.orderId() != null, "ORDER_DELIVERED без orderId");
-        require(event.courierId() != null, "ORDER_DELIVERED без courierId");
-        require(event.createdAt() != null, "ORDER_DELIVERED без createdAt");
-        require(event.deliveredAt() != null, "ORDER_DELIVERED без deliveredAt");
-
-        OrderFact fact = orderFactRepository.findById(event.orderId()).orElseGet(OrderFact::new);
-        if (isNewerThan(fact, event.deliveredAt())) {
-            log.info("[Statistics] Заказ {} уже завершён позже ({}), событие доставки не применяется",
-                    event.orderId(), fact.getStatus());
-            return;
-        }
-
-        fact.setOrderId(event.orderId());
-        fact.setCourierId(event.courierId());
-        fact.setStatus(FactOrderStatus.DELIVERED);
-        fact.setCancelledBy(null);
-        fact.setCreatedAt(event.createdAt());
-        fact.setAssignedAt(event.assignedAt());
-        fact.setPickedUpAt(event.pickedUpAt());
-        fact.setDeliveredAt(event.deliveredAt());
-        fact.setCancelledAt(null);
-        orderFactRepository.save(fact);
-        log.info("[Statistics] Сохранён доставленный заказ {}, курьер {}", event.orderId(), event.courierId());
+    private void apply(OrderDelivered fact) {
+        require(fact.getOrderId() > 0 && fact.getCourierId() > 0, "Некорректный ID заказа или курьера");
+        require(fact.hasCreatedAt() && fact.hasDeliveredAt(), "Не указано время создания или доставки");
+        writeOrder(fact.getOrderId(), fact.getCourierId(), "DELIVERED", null,
+                mapper.toLocalDateTime(fact.getCreatedAt()),
+                fact.hasAssignedAt() ? mapper.toLocalDateTime(fact.getAssignedAt()) : null,
+                fact.hasPickedUpAt() ? mapper.toLocalDateTime(fact.getPickedUpAt()) : null,
+                mapper.toLocalDateTime(fact.getDeliveredAt()), null);
     }
 
-    private void apply(OrderCancelledEvent event) {
-        require(event.orderId() != null, "ORDER_CANCELLED без orderId");
-        require(event.cancelledBy() != null, "ORDER_CANCELLED без cancelledBy");
-        require(event.createdAt() != null, "ORDER_CANCELLED без createdAt");
-        require(event.cancelledAt() != null, "ORDER_CANCELLED без cancelledAt");
-
-        OrderFact fact = orderFactRepository.findById(event.orderId()).orElseGet(OrderFact::new);
-        if (isNewerThan(fact, event.cancelledAt())) {
-            log.info("[Statistics] Заказ {} уже завершён позже ({}), событие отмены не применяется",
-                    event.orderId(), fact.getStatus());
-            return;
-        }
-
-        fact.setOrderId(event.orderId());
-        fact.setCourierId(event.courierId());
-        fact.setStatus(FactOrderStatus.CANCELLED);
-        fact.setCancelledBy(event.cancelledBy());
-        fact.setCreatedAt(event.createdAt());
-        fact.setAssignedAt(event.assignedAt());
-        fact.setPickedUpAt(event.pickedUpAt());
-        fact.setDeliveredAt(null);
-        fact.setCancelledAt(event.cancelledAt());
-        orderFactRepository.save(fact);
-        log.info("[Statistics] Сохранён отменённый заказ {}, отменил {}", event.orderId(), event.cancelledBy());
+    private void apply(OrderCancelled fact) {
+        require(fact.getOrderId() > 0 && (!fact.hasCourierId() || fact.getCourierId() > 0),
+                "Некорректный ID заказа или курьера");
+        require(fact.hasCreatedAt() && fact.hasCancelledAt(), "Не указано время создания или отмены");
+        String initiator = switch (fact.getCancelledBy()) {
+            case CLIENT -> "CLIENT";
+            case ADMIN -> "ADMIN";
+            default -> throw new IllegalArgumentException("Не указан инициатор отмены");
+        };
+        writeOrder(fact.getOrderId(), fact.hasCourierId() ? fact.getCourierId() : null, "CANCELLED", initiator,
+                mapper.toLocalDateTime(fact.getCreatedAt()),
+                fact.hasAssignedAt() ? mapper.toLocalDateTime(fact.getAssignedAt()) : null,
+                fact.hasPickedUpAt() ? mapper.toLocalDateTime(fact.getPickedUpAt()) : null,
+                null, mapper.toLocalDateTime(fact.getCancelledAt()));
     }
 
-    private void apply(NewReviewEvent event) {
-        require(event.reviewId() != null, "NEW_REVIEW без reviewId");
-        require(event.orderId() != null, "NEW_REVIEW без orderId");
-        require(event.courierId() != null, "NEW_REVIEW без courierId");
-        require(event.createdAt() != null, "NEW_REVIEW без createdAt");
-        require(event.rating() != null && event.rating() >= 1 && event.rating() <= 5,
-                "NEW_REVIEW с оценкой вне диапазона 1–5: " + event.rating());
-
-        reviewFactRepository.save(new ReviewFact(
-                event.reviewId(),
-                event.orderId(),
-                event.courierId(),
-                event.rating().shortValue(),
-                event.createdAt()));
-        log.info("[Statistics] Сохранён отзыв {} курьеру {}, оценка {}",
-                event.reviewId(), event.courierId(), event.rating());
+    private void writeOrder(int id, Integer courierId, String status, String cancelledBy, LocalDateTime createdAt,
+            LocalDateTime assignedAt, LocalDateTime pickedUpAt, LocalDateTime deliveredAt,
+            LocalDateTime cancelledAt) {
+        jdbc.sql("""
+                INSERT INTO order_facts
+                    (order_id, courier_id, status, cancelled_by, created_at, assigned_at,
+                     picked_up_at, delivered_at, cancelled_at)
+                VALUES (:id, :courier, :status, :cancelledBy, :created, :assigned, :pickedUp, :delivered, :cancelled)
+                ON CONFLICT (order_id) DO UPDATE SET
+                    courier_id = EXCLUDED.courier_id, status = EXCLUDED.status, cancelled_by = EXCLUDED.cancelled_by,
+                    created_at = EXCLUDED.created_at, assigned_at = EXCLUDED.assigned_at,
+                    picked_up_at = EXCLUDED.picked_up_at, delivered_at = EXCLUDED.delivered_at,
+                    cancelled_at = EXCLUDED.cancelled_at
+                WHERE COALESCE(order_facts.cancelled_at, order_facts.delivered_at)
+                    <= COALESCE(EXCLUDED.cancelled_at, EXCLUDED.delivered_at)
+                """).param("id", id)
+                .param("courier", courierId, Types.INTEGER)
+                .param("status", status)
+                .param("cancelledBy", cancelledBy, Types.VARCHAR)
+                .param("created", createdAt, Types.TIMESTAMP)
+                .param("assigned", assignedAt, Types.TIMESTAMP)
+                .param("pickedUp", pickedUpAt, Types.TIMESTAMP)
+                .param("delivered", deliveredAt, Types.TIMESTAMP)
+                .param("cancelled", cancelledAt, Types.TIMESTAMP)
+                .update();
     }
 
-    private void apply(CourierUpdatedEvent event) {
-        require(event.courierId() != null, "COURIER_UPDATED без courierId");
-        require(event.fullName() != null && !event.fullName().isBlank(), "COURIER_UPDATED без fullName");
-
-        courierFactRepository.save(new CourierFact(event.courierId(), event.fullName().trim()));
-        log.info("[Statistics] Обновлены данные курьера {}", event.courierId());
+    private void apply(ReviewCreated fact) {
+        require(fact.getReviewId() > 0 && fact.getOrderId() > 0 && fact.getCourierId() > 0,
+                "Некорректный ID отзыва, заказа или курьера");
+        require(fact.getRating() >= 1 && fact.getRating() <= 5 && fact.hasCreatedAt(),
+                "Некорректная оценка или не указано время отзыва");
+        jdbc.sql("""
+                INSERT INTO review_facts (review_id, order_id, courier_id, rating, created_at)
+                VALUES (:id, :orderId, :courier, :rating, :created)
+                ON CONFLICT (review_id) DO NOTHING
+                """).param("id", fact.getReviewId())
+                .param("orderId", fact.getOrderId())
+                .param("courier", fact.getCourierId())
+                .param("rating", fact.getRating())
+                .param("created", mapper.toLocalDateTime(fact.getCreatedAt()), Types.TIMESTAMP)
+                .update();
     }
 
-
-    private static boolean isNewerThan(OrderFact existing, LocalDateTime incomingCompletedAt) {
-        if (existing.getStatus() == null) {
-            return false;
-        }
-        LocalDateTime existingCompletedAt = existing.getStatus() == FactOrderStatus.DELIVERED
-                ? existing.getDeliveredAt()
-                : existing.getCancelledAt();
-        return existingCompletedAt != null && existingCompletedAt.isAfter(incomingCompletedAt);
-    }
-
-    private <T> T parse(String payload, Class<T> type) {
-        if (payload == null || payload.isBlank()) {
-            throw new InvalidEventException("пустое сообщение");
-        }
-        try {
-            return jsonMapper.readValue(payload, type);
-        } catch (JacksonException e) {
-            throw new InvalidEventException("некорректный JSON для " + type.getSimpleName() + ": "
-                    + e.getOriginalMessage(), e);
-        }
+    private void apply(CourierUpdated fact) {
+        String name = fact.getFullName().trim();
+        require(fact.getCourierId() > 0 && !name.isBlank() && name.length() <= 255 && fact.hasUpdatedAt(),
+                "Некорректный ID, имя или время обновления курьера");
+        jdbc.sql("""
+                INSERT INTO courier_facts (courier_id, full_name, updated_at)
+                VALUES (:id, :name, :updated)
+                ON CONFLICT (courier_id) DO UPDATE SET
+                    full_name = EXCLUDED.full_name, updated_at = EXCLUDED.updated_at
+                WHERE courier_facts.updated_at IS NULL OR courier_facts.updated_at <= EXCLUDED.updated_at
+                """).param("id", fact.getCourierId())
+                .param("name", name)
+                .param("updated", mapper.toInstant(fact.getUpdatedAt()).atOffset(ZoneOffset.UTC))
+                .update();
     }
 
     private static void require(boolean condition, String message) {
         if (!condition) {
-            throw new InvalidEventException(message);
+            throw new IllegalArgumentException(message);
         }
     }
 }

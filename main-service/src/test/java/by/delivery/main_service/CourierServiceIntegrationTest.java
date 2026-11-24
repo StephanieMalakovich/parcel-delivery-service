@@ -33,7 +33,7 @@ import by.delivery.main_service.service.CourierService;
 
 import jakarta.persistence.EntityNotFoundException;
 
-@SpringBootTest(properties = "spring.liquibase.contexts=test")
+@SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @RecordApplicationEvents
 class CourierServiceIntegrationTest {

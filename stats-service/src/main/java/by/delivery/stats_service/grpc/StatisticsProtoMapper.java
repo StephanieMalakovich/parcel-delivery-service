@@ -1,6 +1,5 @@
 package by.delivery.stats_service.grpc;
 
-import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -17,7 +16,6 @@ import by.delivery.stats_service.service.model.AdminOverview;
 import by.delivery.stats_service.service.model.CourierRatingEntry;
 import by.delivery.stats_service.service.model.CourierStats;
 import by.delivery.stats_service.service.model.Period;
-
 
 @Component
 public class StatisticsProtoMapper {
@@ -89,12 +87,17 @@ public class StatisticsProtoMapper {
         return builder.build();
     }
 
-    private LocalDateTime toLocalDateTime(Timestamp timestamp) {
-        try {
-            Instant instant = Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos());
-            return LocalDateTime.ofInstant(instant, zoneId);
-        } catch (DateTimeException | ArithmeticException e) {
-            throw new IllegalArgumentException("Некорректная метка времени в периоде: " + timestamp, e);
+    public LocalDateTime toLocalDateTime(Timestamp timestamp) {
+        return LocalDateTime.ofInstant(toInstant(timestamp), zoneId);
+    }
+
+    public Instant toInstant(Timestamp timestamp) {
+        long seconds = timestamp.getSeconds();
+        int nanos = timestamp.getNanos();
+        // The allowed Protobuf Timestamp range is UTC years 0001 through 9999.
+        if (seconds < -62_135_596_800L || seconds > 253_402_300_799L || nanos < 0 || nanos > 999_999_999) {
+            throw new IllegalArgumentException("Некорректная метка времени");
         }
+        return Instant.ofEpochSecond(seconds, nanos);
     }
 }

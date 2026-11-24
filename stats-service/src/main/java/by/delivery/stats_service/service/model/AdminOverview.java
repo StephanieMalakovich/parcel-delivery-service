@@ -2,7 +2,6 @@ package by.delivery.stats_service.service.model;
 
 import java.util.List;
 
-
 public record AdminOverview(
         long deliveredCount,
         long cancelledCount,

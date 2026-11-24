@@ -32,6 +32,7 @@ import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 import by.delivery.main_service.repository.entity.Parcel;
 import by.delivery.main_service.repository.entity.Zone;
+import by.delivery.main_service.statistics.AnalyticsOutbox;
 
 import jakarta.persistence.EntityNotFoundException;
 
@@ -49,6 +50,7 @@ public class OrderService {
     private final CourierZoneRepository courierZoneRepository;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AnalyticsOutbox analyticsOutbox;
 
     @Transactional
     public OrderResponse createOrder(String userId, CreateOrderRequest request) {
@@ -257,6 +259,7 @@ public class OrderService {
                     "Заказ #" + order.getId() + " отменён " + who);
         }
 
+        analyticsOutbox.orderCancelled(order);
         eventPublisher.publishEvent(OrderStatusChangedEvent.of(order, courierUserId, null));
         eventPublisher.publishEvent(OrderCancelledEvent.from(order));
     }

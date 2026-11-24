@@ -20,7 +20,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.grpc.client.ImportGrpcClients;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.kafka.core.KafkaTemplate;
 
 import com.google.protobuf.Timestamp;
 
@@ -29,20 +28,20 @@ import by.delivery.stats.grpc.AdminOverviewResponse;
 import by.delivery.stats.grpc.CourierRating;
 import by.delivery.stats.grpc.CourierStatsRequest;
 import by.delivery.stats.grpc.CourierStatsResponse;
+import by.delivery.stats.grpc.CourierUpdated;
+import by.delivery.stats.grpc.OrderCancelled;
+import by.delivery.stats.grpc.OrderDelivered;
 import by.delivery.stats.grpc.Period;
+import by.delivery.stats.grpc.RecordAnalyticsEventRequest;
+import by.delivery.stats.grpc.ReviewCreated;
 import by.delivery.stats.grpc.StatisticsServiceGrpc;
-import by.delivery.stats_service.service.EventProcessingService;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
-@SpringBootTest(properties = {
-        "stats.time-zone=UTC",
-        "stats.kafka.topic=analytics-events-test",
-        "spring.kafka.consumer.group-id=stats-service-test"
-})
+@SpringBootTest(properties = "stats.time-zone=UTC")
 @AutoConfigureTestGrpcTransport
 @ImportGrpcClients(types = StatisticsServiceGrpc.StatisticsServiceBlockingStub.class)
-@Import({TestcontainersConfiguration.class, StatisticsGrpcIntegrationTest.FixedClockConfig.class})
+@Import({ TestcontainersConfiguration.class, StatisticsGrpcIntegrationTest.FixedClockConfig.class })
 class StatisticsGrpcIntegrationTest {
 
     static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 20, 12, 0);
@@ -60,12 +59,6 @@ class StatisticsGrpcIntegrationTest {
     private StatisticsServiceGrpc.StatisticsServiceBlockingStub stub;
 
     @Autowired
-    private EventProcessingService eventProcessingService;
-
-    @Autowired
-    private KafkaTemplate<String, String> kafkaTemplate;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
@@ -80,7 +73,7 @@ class StatisticsGrpcIntegrationTest {
         handle(delivered(101, 1, NOW.minusDays(3), 30));
         handle(delivered(102, 1, NOW.minusDays(2), 50));
         // отмена не считается доставкой
-        handle(cancelled(103, 1, "CLIENT", NOW.minusDays(1)));
+        handle(cancelled(103, 1, OrderCancelled.Initiator.CLIENT, NOW.minusDays(1)));
         // старый отзыв учитывается в рейтинге, свежий — ещё нет
         handle(review(201, 101, 1, 5, NOW.minusDays(10)));
         handle(review(202, 102, 1, 1, NOW.minusDays(1)));
@@ -133,7 +126,7 @@ class StatisticsGrpcIntegrationTest {
         handle(delivered(101, 1, NOW.minusDays(3), 20));
         handle(delivered(102, 2, NOW.minusDays(3), 40));
         handle(delivered(103, 2, NOW.minusDays(2), 60));
-        handle(cancelled(104, null, "CLIENT", NOW.minusDays(1)));
+        handle(cancelled(104, null, OrderCancelled.Initiator.CLIENT, NOW.minusDays(1)));
         handle(review(201, 101, 1, 3, NOW.minusDays(9)));
         handle(review(202, 102, 2, 5, NOW.minusDays(8)));
         handle(review(203, 103, 2, 4, NOW.minusDays(8)));
@@ -163,7 +156,7 @@ class StatisticsGrpcIntegrationTest {
 
     @Test
     void repeatedEventIsProcessedOnce() {
-        String event = review(201, 101, 1, 5, NOW.minusDays(10));
+        var event = review(201, 101, 1, 5, NOW.minusDays(10));
         handle(event);
         handle(event);
 
@@ -176,7 +169,8 @@ class StatisticsGrpcIntegrationTest {
     @Test
     void laterCancellationReplacesDelivery() {
         handle(delivered(101, 1, NOW.minusDays(2), 30));
-        handle(cancelled(101, 1, "ADMIN", NOW.minusDays(1)));
+        handle(cancelled(101, 1, OrderCancelled.Initiator.ADMIN, NOW.minusDays(1)));
+        handle(delivered(101, 1, NOW.minusDays(2), 30));
 
         AdminOverviewResponse overview = stub.getAdminOverview(AdminOverviewRequest.getDefaultInstance());
 
@@ -199,58 +193,65 @@ class StatisticsGrpcIntegrationTest {
     }
 
     @Test
-    void eventFromKafkaReachesStatistics() throws Exception {
-        kafkaTemplate.send("analytics-events-test", "501", delivered(501, 7, NOW.minusDays(1), 25)).get();
-
-        CourierStatsResponse stats = null;
-        for (int attempt = 0; attempt < 100; attempt++) {
-            stats = stub.getCourierStats(CourierStatsRequest.newBuilder().setCourierId(7).build());
-            if (stats.getDeliveredCount() == 1) {
-                break;
-            }
-            Thread.sleep(200);
-        }
-        assertThat(stats.getDeliveredCount()).isEqualTo(1);
-        assertThat(stats.getAverageDeliveryMinutes()).isEqualTo(25.0);
+    void invalidFactRollsBackTheDeduplicationMarker() {
+        var valid = review(201, 101, 1, 5, NOW.minusDays(10));
+        var invalid = valid.toBuilder().setReviewCreated(valid.getReviewCreated().toBuilder().setRating(9)).build();
+        assertThatThrownBy(() -> handle(invalid))
+                .isInstanceOfSatisfying(StatusRuntimeException.class,
+                        e -> assertThat(e.getStatus().getCode()).isEqualTo(Status.Code.INVALID_ARGUMENT));
+        handle(valid);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM review_facts", Integer.class)).isEqualTo(1);
     }
 
-
-    private void handle(String json) {
-        eventProcessingService.handle(json);
+    @Test
+    void olderCourierUpdateDoesNotOverwriteTheNewName() {
+        handle(courierUpdated(7, "Новое имя"));
+        var old = courierUpdated(7, "Старое имя");
+        handle(old.toBuilder().setCourierUpdated(old.getCourierUpdated().toBuilder()
+                .setUpdatedAt(timestamp(NOW.minusDays(1)))).build());
+        assertThat(stub.getCourierStats(CourierStatsRequest.newBuilder().setCourierId(7).build()).getFullName())
+                .isEqualTo("Новое имя");
     }
 
-    private static String courierUpdated(int courierId, String fullName) {
-        return """
-                {"eventId":"%s","type":"COURIER_UPDATED","occurredAt":"%s","courierId":%d,"fullName":"%s"}
-                """.formatted(UUID.randomUUID(), NOW, courierId, fullName);
+    private void handle(RecordAnalyticsEventRequest event) {
+        stub.recordAnalyticsEvent(event);
     }
 
-    private static String delivered(int orderId, int courierId, LocalDateTime deliveredAt, int minutes) {
+    private static RecordAnalyticsEventRequest courierUpdated(int courierId, String fullName) {
+        return event().setCourierUpdated(CourierUpdated.newBuilder()
+                .setCourierId(courierId).setFullName(fullName).setUpdatedAt(timestamp(NOW))).build();
+    }
+
+    private static RecordAnalyticsEventRequest delivered(int orderId, int courierId,
+            LocalDateTime deliveredAt, int minutes) {
         LocalDateTime pickedUpAt = deliveredAt.minusMinutes(minutes);
         LocalDateTime createdAt = pickedUpAt.minusMinutes(30);
-        return """
-                {"eventId":"%s","type":"ORDER_DELIVERED","occurredAt":"%s","orderId":%d,"courierId":%d,
-                 "createdAt":"%s","assignedAt":"%s","pickedUpAt":"%s","deliveredAt":"%s"}
-                """.formatted(UUID.randomUUID(), deliveredAt, orderId, courierId,
-                createdAt, createdAt.plusMinutes(10), pickedUpAt, deliveredAt);
+        return event().setOrderDelivered(OrderDelivered.newBuilder().setOrderId(orderId).setCourierId(courierId)
+                .setCreatedAt(timestamp(createdAt)).setAssignedAt(timestamp(createdAt.plusMinutes(10)))
+                .setPickedUpAt(timestamp(pickedUpAt)).setDeliveredAt(timestamp(deliveredAt))).build();
     }
 
-    private static String cancelled(int orderId, Integer courierId, String cancelledBy, LocalDateTime cancelledAt) {
+    private static RecordAnalyticsEventRequest cancelled(int orderId, Integer courierId,
+            OrderCancelled.Initiator cancelledBy,
+            LocalDateTime cancelledAt) {
         LocalDateTime createdAt = cancelledAt.minusHours(1);
-        String assignedAt = courierId == null ? "null" : "\"" + createdAt.plusMinutes(10) + "\"";
-        return """
-                {"eventId":"%s","type":"ORDER_CANCELLED","occurredAt":"%s","orderId":%d,"courierId":%s,
-                 "status":"CANCELLED","cancelledBy":"%s","createdAt":"%s","assignedAt":%s,"pickedUpAt":null,
-                 "cancelledAt":"%s"}
-                """.formatted(UUID.randomUUID(), cancelledAt, orderId, courierId, cancelledBy,
-                createdAt, assignedAt, cancelledAt);
+        var fact = OrderCancelled.newBuilder().setOrderId(orderId).setCancelledBy(cancelledBy)
+                .setCreatedAt(timestamp(createdAt)).setCancelledAt(timestamp(cancelledAt));
+        if (courierId != null) {
+            fact.setCourierId(courierId).setAssignedAt(timestamp(createdAt.plusMinutes(10)));
+        }
+        return event().setOrderCancelled(fact).build();
     }
 
-    private static String review(int reviewId, int orderId, int courierId, int rating, LocalDateTime createdAt) {
-        return """
-                {"eventId":"%s","type":"NEW_REVIEW","occurredAt":"%s","reviewId":%d,"orderId":%d,
-                 "courierId":%d,"rating":%d,"comment":"ok","createdAt":"%s"}
-                """.formatted(UUID.randomUUID(), createdAt, reviewId, orderId, courierId, rating, createdAt);
+    private static RecordAnalyticsEventRequest review(int reviewId, int orderId, int courierId, int rating,
+            LocalDateTime createdAt) {
+        return event().setReviewCreated(ReviewCreated.newBuilder()
+                .setReviewId(reviewId).setOrderId(orderId).setCourierId(courierId)
+                .setRating(rating).setCreatedAt(timestamp(createdAt))).build();
+    }
+
+    private static RecordAnalyticsEventRequest.Builder event() {
+        return RecordAnalyticsEventRequest.newBuilder().setEventId(UUID.randomUUID().toString());
     }
 
     private static Timestamp timestamp(LocalDateTime value) {

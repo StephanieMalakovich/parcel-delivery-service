@@ -1,46 +1,38 @@
 name: parcel-delivery
-
 services:
   primary-db:
     image: postgres:18
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: primarydb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${PRIMARY_DB_PASSWORD:-dev_password}
-
     ports:
       - "5432:5432"
-
     volumes:
       - primary_db_data:/var/lib/postgresql
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d primarydb"]
       interval: 5s
       timeout: 3s
       retries: 10
-
   app:
     build:
-      context: ./main-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: main-service/Dockerfile
     container_name: parcel-app
     restart: unless-stopped
-
     expose:
       - "8080"
-
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://primary-db:5432/primarydb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: ${PRIMARY_DB_PASSWORD:-dev_password}
-
-
+      STATS_GRPC_TARGET: dns:///stats-service:9090
+      STATS_TIME_ZONE: ${STATS_TIME_ZONE:-UTC}
+      TZ: ${STATS_TIME_ZONE:-UTC}
       KEYCLOAK_ISSUER_URI: http://127.0.0.1/realms/parcel
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/parcel/protocol/openid-connect/certs
-
       KEYCLOAK_CLIENT_ID: parcel-app
       KEYCLOAK_CLIENT_SECRET: 28bRswklX0bXsY76ijpq7QL2ReNYdOonWvTvYagQDrEnBM1OI0L7UkjwqrxY4ojOi4g5DXrG5lSUHwnniA7anx
     depends_on:
@@ -48,111 +40,62 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_started
-
-
     networks:
       - default
       - keycloak_net
-
   stats-db:
     image: postgres:18
     container_name: stats_postgres
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: statsdb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${STATS_DB_PASSWORD:-dev_password}
-
     ports:
       - "5434:5432"
-
     volumes:
       - stats_db_data:/var/lib/postgresql
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d statsdb"]
       interval: 5s
       timeout: 3s
       retries: 10
-
-  kafka:
-    image: apache/kafka:4.1.0
-    container_name: kafka
-    restart: unless-stopped
-
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-
-    ports:
-      - "127.0.0.1:29092:29092"
-
-    healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 15s
-
   stats-service:
     build:
       context: ./stats-service
       dockerfile: Dockerfile
     container_name: parcel-stats
     restart: unless-stopped
-
     expose:
       - "9090"
-
     environment:
       STATS_DB_URL: jdbc:postgresql://stats-db:5432/statsdb
       STATS_DB_USER: postgres
       STATS_DB_PASSWORD: ${STATS_DB_PASSWORD:-dev_password}
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       GRPC_PORT: 9090
-
+      STATS_TIME_ZONE: ${STATS_TIME_ZONE:-UTC}
     depends_on:
       stats-db:
         condition: service_healthy
-      kafka:
-        condition: service_healthy
-
   keycloak_db:
     image: postgres:18
     container_name: keycloak_postgres
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: keycloak
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${PRIMARY_DB_PASSWORD:-dev_password}
-
     ports:
       - "5433:5432"
-
     volumes:
       - keycloak_db_data:/var/lib/postgresql
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d keycloak"]
       interval: 5s
       timeout: 3s
       retries: 10
-
     networks:
       - keycloak_net
-
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.1
     container_name: keycloak
@@ -168,7 +111,6 @@ services:
       KC_HOSTNAME: http://127.0.0.1
       KC_HOSTNAME_ADMIN: http://127.0.0.1:9090
       KC_PROXY_HEADERS: xforwarded
-
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     depends_on:
@@ -176,25 +118,20 @@ services:
         condition: service_healthy
     networks:
       - keycloak_net
-
   nginx:
     image: nginx:alpine
     container_name: parcel-nginx
     restart: unless-stopped
-
     ports:
       - "127.0.0.1:80:80"
       - "127.0.0.1:9090:9090"
-
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-
     depends_on:
       app:
         condition: service_started
       keycloak:
         condition: service_started
-
     networks:
       - default
       - keycloak_net
@@ -202,7 +139,6 @@ volumes:
   primary_db_data:
   keycloak_db_data:
   stats_db_data:
-
 networks:
   default: {}
   keycloak_net: {}

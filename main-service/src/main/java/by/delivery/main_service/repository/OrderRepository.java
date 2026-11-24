@@ -40,7 +40,6 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
             OrderStatus status,
             Pageable pageable);
 
-
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<Order> findWithLockById(Integer id);
 }

@@ -26,7 +26,7 @@ import org.springframework.web.context.WebApplicationContext;
 
 import com.jayway.jsonpath.JsonPath;
 
-@SpringBootTest(properties = "spring.liquibase.contexts=test")
+@SpringBootTest
 @Import(TestcontainersConfiguration.class)
 @RecordApplicationEvents
 class SecurityIntegrationTest {

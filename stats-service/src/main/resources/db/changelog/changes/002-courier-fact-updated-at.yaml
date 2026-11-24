@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-courier-fact-updated-at
+      author: delivery
+      changes:
+        - addColumn:
+            tableName: courier_facts
+            columns:
+              - column: { name: updated_at, type: timestamptz }

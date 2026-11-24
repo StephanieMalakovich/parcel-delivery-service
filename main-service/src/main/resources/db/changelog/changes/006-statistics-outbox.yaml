@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-statistics-outbox
+      author: delivery
+      changes:
+        - createTable:
+            tableName: statistics_outbox
+            columns:
+              - column: { name: id, type: bigint, autoIncrement: true, constraints: { primaryKey: true } }
+              - column: { name: payload, type: bytea, constraints: { nullable: false } }
+              - column: { name: attempts, type: int, defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: next_attempt_at, type: timestamptz, defaultValueComputed: now(), constraints: { nullable: false } }
+              - column: { name: failed_at, type: timestamptz }
+        - sql:
+            sql: CREATE INDEX idx_statistics_outbox_ready ON statistics_outbox (next_attempt_at, id) WHERE failed_at IS NULL

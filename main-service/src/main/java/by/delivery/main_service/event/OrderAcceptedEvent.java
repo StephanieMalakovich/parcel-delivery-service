@@ -6,7 +6,6 @@ import java.util.UUID;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 
-
 public record OrderAcceptedEvent(
         UUID eventId,
         String type,

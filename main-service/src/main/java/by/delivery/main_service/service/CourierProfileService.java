@@ -18,6 +18,7 @@ import by.delivery.main_service.repository.ZoneRepository;
 import by.delivery.main_service.repository.entity.Courier;
 import by.delivery.main_service.repository.entity.CourierZone;
 import by.delivery.main_service.repository.entity.Zone;
+import by.delivery.main_service.statistics.AnalyticsOutbox;
 
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class CourierProfileService {
     private final CourierRepository courierRepository;
     private final CourierZoneRepository courierZoneRepository;
     private final ZoneRepository zoneRepository;
+    private final AnalyticsOutbox analyticsOutbox;
 
     @Transactional(readOnly = true)
     public PageResponse<CourierResponse> getAll(Pageable pageable) {
@@ -54,12 +56,14 @@ public class CourierProfileService {
         Courier saved = courierRepository.saveAndFlush(courier);
 
         zones.forEach(zone -> courierZoneRepository.save(new CourierZone(saved, zone)));
+        analyticsOutbox.courierUpdated(saved);
         return toResponse(saved);
     }
 
     @Transactional
     public CourierResponse update(Integer courierId, UpdateCourierRequest request) {
-        Courier courier = load(courierId);
+        Courier courier = courierRepository.findWithLockById(courierId)
+                .orElseThrow(() -> new EntityNotFoundException("Курьер не найден: " + courierId));
         List<Zone> zones = loadZones(request.zoneIds());
 
         courier.setFullName(request.fullName());
@@ -80,6 +84,7 @@ public class CourierProfileService {
                 .forEach(zone -> courierZoneRepository.save(new CourierZone(courier, zone)));
 
         courierZoneRepository.flush();
+        analyticsOutbox.courierUpdated(courier);
         return toResponse(courier);
     }
 

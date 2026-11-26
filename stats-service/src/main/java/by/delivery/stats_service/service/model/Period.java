@@ -2,7 +2,6 @@ package by.delivery.stats_service.service.model;
 
 import java.time.LocalDateTime;
 
-
 public record Period(LocalDateTime from, LocalDateTime to) {
 
     private static final LocalDateTime MIN = LocalDateTime.of(1, 1, 1, 0, 0);

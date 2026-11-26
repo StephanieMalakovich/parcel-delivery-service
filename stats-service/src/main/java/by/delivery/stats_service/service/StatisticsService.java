@@ -24,7 +24,6 @@ import by.delivery.stats_service.service.model.CourierStats;
 import by.delivery.stats_service.service.model.Period;
 import lombok.RequiredArgsConstructor;
 
-
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)

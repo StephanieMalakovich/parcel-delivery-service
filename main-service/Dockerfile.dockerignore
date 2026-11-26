@@ -1,0 +1,14 @@
+**
+!main-service/
+!main-service/gradlew
+!main-service/*.gradle
+!main-service/gradle.properties
+!main-service/gradle/
+!main-service/gradle/**
+!main-service/src/
+!main-service/src/**
+!stats-service/
+!stats-service/src/
+!stats-service/src/main/
+!stats-service/src/main/proto/
+!stats-service/src/main/proto/**

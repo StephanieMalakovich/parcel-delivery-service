@@ -1,13 +1,20 @@
 spring:
   application:
     name: main-service
-
+  grpc:
+    client:
+      channel:
+        statistics:
+          target: ${STATS_GRPC_TARGET:dns:///localhost:9091}
+          ssl:
+            enabled: false
+          default:
+            deadline: ${STATS_GRPC_TIMEOUT:2s}
   datasource:
     url: ${PRIMARY_DB_URL:jdbc:postgresql://localhost:5432/primarydb}
     username: ${PRIMARY_DB_USER:postgres}
     password: ${PRIMARY_DB_PASSWORD:dev_password}
     driver-class-name: org.postgresql.Driver
-
   jpa:
     open-in-view: false
     hibernate:
@@ -16,24 +23,21 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
-
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
-    contexts: ${LIQUIBASE_CONTEXTS:}
-
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://127.0.0.1/realms/parcel}
           jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:9090/realms/parcel/protocol/openid-connect/certs}
-
 app:
   security:
     user-id-claim: ${USER_ID_CLAIM:user_id}
-
+  statistics:
+    time-zone: ${STATS_TIME_ZONE:}
 logging:
   level:
     liquibase: INFO
+    org.springframework.security: DEBUG

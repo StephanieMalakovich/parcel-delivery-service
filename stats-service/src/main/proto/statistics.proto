@@ -12,8 +12,61 @@ service StatisticsService {
   rpc GetCourierStats(CourierStatsRequest) returns (CourierStatsResponse);
 
   rpc GetAdminOverview(AdminOverviewRequest) returns (AdminOverviewResponse);
+
+  // Internal API for projecting committed changes from main-service.
+  rpc RecordAnalyticsEvent(RecordAnalyticsEventRequest) returns (RecordAnalyticsEventResponse);
 }
 
+message RecordAnalyticsEventRequest {
+  // Stable UUID across delivery attempts.
+  string event_id = 1;
+  oneof fact {
+    OrderDelivered order_delivered = 2;
+    OrderCancelled order_cancelled = 3;
+    ReviewCreated review_created = 4;
+    CourierUpdated courier_updated = 5;
+  }
+}
+
+message RecordAnalyticsEventResponse {}
+
+message OrderDelivered {
+  int32 order_id = 1;
+  int32 courier_id = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp assigned_at = 4;
+  google.protobuf.Timestamp picked_up_at = 5;
+  google.protobuf.Timestamp delivered_at = 6;
+}
+
+message OrderCancelled {
+  enum Initiator {
+    INITIATOR_UNSPECIFIED = 0;
+    CLIENT = 1;
+    ADMIN = 2;
+  }
+  int32 order_id = 1;
+  optional int32 courier_id = 2;
+  Initiator cancelled_by = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp assigned_at = 5;
+  google.protobuf.Timestamp picked_up_at = 6;
+  google.protobuf.Timestamp cancelled_at = 7;
+}
+
+message ReviewCreated {
+  int32 review_id = 1;
+  int32 order_id = 2;
+  int32 courier_id = 3;
+  int32 rating = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message CourierUpdated {
+  int32 courier_id = 1;
+  string full_name = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
 
 message Period {
   google.protobuf.Timestamp from = 1;

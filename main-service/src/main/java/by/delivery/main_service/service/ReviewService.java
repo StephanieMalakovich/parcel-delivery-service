@@ -16,6 +16,7 @@ import by.delivery.main_service.repository.ReviewRepository;
 import by.delivery.main_service.repository.entity.Order;
 import by.delivery.main_service.repository.entity.OrderStatus;
 import by.delivery.main_service.repository.entity.Review;
+import by.delivery.main_service.statistics.AnalyticsOutbox;
 
 import jakarta.persistence.EntityNotFoundException;
 
@@ -32,6 +33,7 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final CourierRepository courierRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AnalyticsOutbox analyticsOutbox;
 
     @Transactional
     public ReviewResponse leaveReview(Integer orderId, String userId, Integer rating, String comment) {
@@ -60,6 +62,7 @@ public class ReviewService {
         review.setComment(comment);
 
         Review saved = reviewRepository.saveAndFlush(review);
+        analyticsOutbox.reviewCreated(saved);
 
         eventPublisher.publishEvent(NewReviewEvent.from(saved));
         return ReviewResponse.from(saved);

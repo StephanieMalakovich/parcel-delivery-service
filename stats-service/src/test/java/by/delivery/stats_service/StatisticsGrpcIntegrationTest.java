@@ -11,6 +11,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.grpc.test.autoconfigure.AutoConfigureTestGrpcTransport;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +47,7 @@ import io.grpc.StatusRuntimeException;
 class StatisticsGrpcIntegrationTest {
 
     static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 20, 12, 0);
+    private static final long SEVEN_DAYS_IN_SECONDS = 7 * 24 * 60 * 60;
 
     @TestConfiguration(proxyBeanMethods = false)
     static class FixedClockConfig {
@@ -116,6 +119,32 @@ class StatisticsGrpcIntegrationTest {
         assertThat(stats.hasAverageRating()).isFalse();
         assertThat(stats.hasAverageDeliveryMinutes()).isFalse();
         assertThat(stats.getFullName()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = { 0, SEVEN_DAYS_IN_SECONDS - 1, SEVEN_DAYS_IN_SECONDS })
+    void adminIncludesReviewImmediatelyWhileCourierWaitsSevenDays(long reviewAgeSeconds) {
+        handle(review(201, 101, 1, 5, NOW.minusSeconds(reviewAgeSeconds)));
+
+        AdminOverviewResponse overview = stub.getAdminOverview(AdminOverviewRequest.getDefaultInstance());
+        assertThat(overview.getCourierRatingsList()).singleElement().satisfies(rating -> {
+            assertThat(rating.getCourierId()).isEqualTo(1);
+            assertThat(rating.getRatedReviewsCount()).isEqualTo(1);
+            assertThat(rating.hasAverageRating()).isTrue();
+            assertThat(rating.getAverageRating()).isEqualTo(5.0);
+        });
+
+        CourierStatsResponse stats = stub.getCourierStats(CourierStatsRequest.newBuilder().setCourierId(1).build());
+        if (reviewAgeSeconds == SEVEN_DAYS_IN_SECONDS) {
+            assertThat(stats.getRatedReviewsCount()).isEqualTo(1);
+            assertThat(stats.getPendingReviewsCount()).isZero();
+            assertThat(stats.hasAverageRating()).isTrue();
+            assertThat(stats.getAverageRating()).isEqualTo(5.0);
+        } else {
+            assertThat(stats.getRatedReviewsCount()).isZero();
+            assertThat(stats.getPendingReviewsCount()).isEqualTo(1);
+            assertThat(stats.hasAverageRating()).isFalse();
+        }
     }
 
     @Test

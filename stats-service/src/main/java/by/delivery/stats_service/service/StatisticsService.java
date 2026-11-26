@@ -59,7 +59,7 @@ public class StatisticsService {
         long finished = totals.deliveredCount() + totals.cancelledCount();
         double cancelledPercent = finished == 0 ? 0.0 : 100.0 * totals.cancelledCount() / finished;
 
-        List<CourierRatingRow> rows = queries.courierRatings(period, maturityCutoff());
+        List<CourierRatingRow> rows = queries.courierRatings(period);
         List<CourierRatingEntry> ratings = new ArrayList<>(rows.size());
         for (int i = 0; i < rows.size(); i++) {
             CourierRatingRow row = rows.get(i);

@@ -101,7 +101,7 @@ public class StatisticsQueryRepository {
                 .single();
     }
 
-    public List<CourierRatingRow> courierRatings(Period period, LocalDateTime maturityCutoff) {
+    public List<CourierRatingRow> courierRatings(Period period) {
         return jdbcClient.sql("""
                 WITH known_couriers AS (
                     SELECT courier_id FROM courier_facts
@@ -113,7 +113,6 @@ public class StatisticsQueryRepository {
                 ratings AS (
                     SELECT courier_id, AVG(rating) AS avg_rating, COUNT(*) AS rated_count
                     FROM review_facts
-                    WHERE created_at <= :cutoff
                     GROUP BY courier_id
                 ),
                 deliveries AS (
@@ -136,7 +135,6 @@ public class StatisticsQueryRepository {
                          delivered_count DESC,
                          k.courier_id
                 """)
-                .param("cutoff", maturityCutoff)
                 .param("from", period.fromOrMin())
                 .param("to", period.toOrMax())
                 .query((rs, rowNum) -> new CourierRatingRow(
